@@ -138,7 +138,7 @@ const partnerStatus = ref('准备就绪，随时为您服务')
 // 消息数据
 const messages = reactive([])
 const recentMessages = computed(() => {
-  return messages.slice(-4) // 只显示最近4条消息
+  return messages.slice(-8) // 显示最近8条消息
 })
 
 // 录音相关
@@ -721,31 +721,60 @@ onUnmounted(() => {
   top: 20px;
   left: 20px;
   right: 20px;
-  max-height: 200px;
+  max-height: 45vh; /* 增加到屏幕高度的45% */
   overflow-y: auto;
   z-index: 3;
   transition: all 0.3s ease;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  padding: 15px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* 滚动条样式优化 */
+.conversation-text::-webkit-scrollbar {
+  width: 6px;
+}
+
+.conversation-text::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+.conversation-text::-webkit-scrollbar-thumb {
+  background: rgba(212, 197, 169, 0.6);
+  border-radius: 10px;
+  transition: background 0.3s ease;
+}
+
+.conversation-text::-webkit-scrollbar-thumb:hover {
+  background: rgba(212, 197, 169, 0.8);
 }
 
 .conversation-text.minimized {
-  opacity: 0.3;
-  transform: translateY(-10px);
+  opacity: 0.6;
+  transform: translateY(-5px);
+  max-height: 25vh; /* 最小化时仍保持较大的区域 */
 }
 
 .messages-container {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px; /* 增加消息间距 */
+  padding: 5px 0;
 }
 
 .message-bubble {
-  max-width: 70%;
-  padding: 12px 16px;
+  max-width: 80%; /* 增加消息气泡最大宽度 */
+  padding: 14px 18px; /* 增加内边距 */
   border-radius: 18px;
   position: relative;
   backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.3);
   animation: messageAppear 0.5s ease-out;
+  font-size: 15px; /* 稍微增大字体 */
+  line-height: 1.5;
 }
 
 .message-bubble.user {
@@ -762,13 +791,15 @@ onUnmounted(() => {
 }
 
 .message-content {
-  font-size: 14px;
-  line-height: 1.4;
-  margin-bottom: 4px;
+  font-size: 15px; /* 增大消息内容字体 */
+  line-height: 1.5;
+  margin-bottom: 6px; /* 增加间距 */
+  word-wrap: break-word;
+  word-break: break-word;
 }
 
 .message-time {
-  font-size: 11px;
+  font-size: 12px; /* 稍微增大时间字体 */
   opacity: 0.6;
   text-align: right;
 }
@@ -1032,7 +1063,12 @@ onUnmounted(() => {
     top: 80px;
     left: 15px;
     right: 15px;
-    max-height: 150px;
+    max-height: 40vh; /* 移动端也增加聊天区域 */
+    padding: 12px;
+  }
+  
+  .conversation-text.minimized {
+    max-height: 20vh;
   }
   
   .cloud {
@@ -1065,9 +1101,18 @@ onUnmounted(() => {
   }
   
   .message-bubble {
-    max-width: 85%;
-    padding: 10px 14px;
-    font-size: 13px;
+    max-width: 90%; /* 小屏幕上进一步增加宽度 */
+    padding: 12px 16px;
+    font-size: 14px;
+  }
+  
+  .conversation-text {
+    max-height: 35vh; /* 小屏幕适配 */
+    padding: 10px;
+  }
+  
+  .conversation-text.minimized {
+    max-height: 18vh;
   }
   
   .settings-entry, .text-toggle {
