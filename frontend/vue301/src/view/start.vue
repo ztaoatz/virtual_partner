@@ -26,12 +26,17 @@
           让言语成为连接心灵的桥梁
         </p>
       </div>
-      
-      <div class="action-section">
+        <div class="action-section">
         <button class="start-btn" @click="handleLogin">
           <span class="btn-icon">🌟</span>
-          开始旅程
+          开始温暖旅程
         </button>
+        
+        <button class="trial-btn" @click="handleTrial">
+          <span class="btn-icon">✨</span>
+          立即体验对话
+        </button>
+        
         <p class="hint-text">让AI陪伴您的每一次真诚交流</p>
       </div>
     </div>
@@ -48,7 +53,7 @@ function handleLogin() {
 }
 
 function handleTrial() {
-  router.push('/conversation');
+  router.push('/conversation-new');
 }
 </script>
 
@@ -237,6 +242,35 @@ function handleTrial() {
 }
 
 .start-btn:active {
+  transform: translateY(-1px);
+}
+
+.trial-btn {
+  background: linear-gradient(135deg, #e8f4fd, #d4e7f4);
+  color: #7a6f5d;
+  border: none;
+  padding: 12px 35px;
+  border-radius: 25px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: 0.5px;
+  box-shadow: 0 6px 20px rgba(212, 231, 244, 0.3);
+  margin-top: 15px;
+}
+
+.trial-btn:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 30px rgba(212, 231, 244, 0.4);
+  background: linear-gradient(135deg, #d4e7f4, #c4ddf0);
+  color: #6b6054;
+}
+
+.trial-btn:active {
   transform: translateY(-1px);
 }
 

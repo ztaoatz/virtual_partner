@@ -41,12 +41,19 @@
             <span class="btn-desc">温暖真诚的祝福语</span>
           </div>
         </button>
-        
-        <button class="scenario-button special-btn" @click="handleClick('送祝福小红书版', 'conversation4')">
+          <button class="scenario-button special-btn" @click="handleClick('送祝福小红书版', 'conversation4')">
           <div class="btn-icon">📱</div>
           <div class="btn-text">
             <span class="btn-title">小红书祝福</span>
             <span class="btn-desc">时尚有趣的网络祝福</span>
+          </div>
+        </button>
+        
+        <button class="scenario-button immersive-btn" @click="handleClick('沉浸式对话', 'conversation-new')">
+          <div class="btn-icon">🌟</div>
+          <div class="btn-text">
+            <span class="btn-title">沉浸式对话</span>
+            <span class="btn-desc">全新的AI伙伴交流体验</span>
           </div>
         </button>
       </div>
@@ -292,6 +299,10 @@ const handleClick = (scenario, page) => {
 
 .special-btn:hover {
   background: linear-gradient(135deg, rgba(221, 160, 221, 0.3), rgba(238, 130, 238, 0.3));
+}
+
+.immersive-btn:hover {
+  background: linear-gradient(135deg, rgba(212, 197, 169, 0.3), rgba(184, 160, 130, 0.3));
 }
 
 .footer-section {

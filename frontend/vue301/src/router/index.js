@@ -4,6 +4,7 @@ import Conversation from '../view/Conversation.vue';
 import Conversation2 from '../view/Conversation2.vue';
 import Conversation3 from '../view/Conversation3.vue';
 import Conversation4 from '../view/Conversation4.vue';
+import ConversationNew from '../view/ConversationNew.vue';
 import start from "../view/start.vue";
 import welcome from "../view/welcome.vue"
 const routes = [
@@ -57,11 +58,18 @@ const routes = [
       path: '/conversation3',
       name: 'conversation3',
   	  component: Conversation3,
-  },
-  {
+  },  {
       path: '/conversation4',
       name: 'conversation4',
   	  component: Conversation4,
+  },
+  {
+      path: '/conversation-new',
+      name: 'conversation-new',
+      meta: {
+        title: "沉浸式对话",
+      },
+  	  component: ConversationNew,
   },
   {
       path: '/start',
