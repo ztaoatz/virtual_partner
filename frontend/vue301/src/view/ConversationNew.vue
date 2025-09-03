@@ -86,11 +86,21 @@
             <div class="spinner-ring"></div>
           </div>
         </button>
-        
-        <!-- 录音状态提示 -->
+          <!-- 录音状态提示 -->
         <div class="recording-hint" v-if="isRecording">
           <div class="pulse-dot"></div>
-          <span>正在倾听...</span>
+          <span v-if="recognition">正在语音识别...</span>
+          <span v-else>正在录制音频...</span>
+        </div>
+        
+        <!-- 处理状态提示 -->
+        <div class="processing-hint" v-if="isProcessing">
+          <div class="thinking-dots">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+          <span>AI正在思考中...</span>
         </div>
       </div>
     </div>
@@ -135,6 +145,63 @@ const recentMessages = computed(() => {
 let mediaRecorder = null
 let audioStream = null
 let recordingTimeout = null
+let recognition = null
+
+// 初始化语音识别
+const initSpeechRecognition = () => {
+  if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+    recognition = new SpeechRecognition()
+    
+    recognition.continuous = true
+    recognition.interimResults = true
+    recognition.lang = 'zh-CN'
+    recognition.maxAlternatives = 1
+    
+    recognition.onstart = () => {
+      console.log('语音识别已启动')
+    }
+    
+    recognition.onresult = (event) => {
+      let finalTranscript = ''
+      let interimTranscript = ''
+      
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript
+        if (event.results[i].isFinal) {
+          finalTranscript += transcript
+        } else {
+          interimTranscript += transcript
+        }
+      }
+      
+      if (finalTranscript) {
+        handleSpeechResult(finalTranscript)
+      }
+    }
+    
+    recognition.onerror = (event) => {
+      console.error('语音识别错误:', event.error)
+      if (event.error === 'no-speech') {
+        partnerStatus.value = '没有检测到语音，请重试'
+      } else if (event.error === 'network') {
+        partnerStatus.value = '网络连接问题，请检查网络'
+      } else {
+        partnerStatus.value = '语音识别失败，请重试'
+      }
+      resetRecordingState()
+    }
+    
+    recognition.onend = () => {
+      console.log('语音识别已结束')
+      if (isRecording.value) {
+        stopRecording()
+      }
+    }
+  } else {
+    console.warn('浏览器不支持语音识别API，将使用MediaRecorder录音')
+  }
+}
 
 // 方法
 const toggleRecording = async () => {
@@ -151,38 +218,54 @@ const startRecording = async () => {
     isListening.value = true
     partnerStatus.value = '我在认真倾听...'
     
-    // 获取音频流
-    audioStream = await navigator.mediaDevices.getUserMedia({ audio: true })
-    mediaRecorder = new MediaRecorder(audioStream)
-    
-    const audioChunks = []
-    
-    mediaRecorder.ondataavailable = (event) => {
-      audioChunks.push(event.data)
-    }
-    
-    mediaRecorder.onstop = async () => {
-      const audioBlob = new Blob(audioChunks, { type: 'audio/wav' })
-      await processAudio(audioBlob)
-    }
-    
-    mediaRecorder.start()
-    
-    // 30秒后自动停止录音
-    recordingTimeout = setTimeout(() => {
-      if (isRecording.value) {
-        stopRecording()
+    // 优先使用语音识别API
+    if (recognition) {
+      recognition.start()
+      
+      // 设置超时
+      recordingTimeout = setTimeout(() => {
+        if (isRecording.value) {
+          stopRecording()
+        }
+      }, 30000)
+      
+    } else {
+      // 备选方案：使用MediaRecorder
+      audioStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      mediaRecorder = new MediaRecorder(audioStream)
+      
+      const audioChunks = []
+      
+      mediaRecorder.ondataavailable = (event) => {
+        audioChunks.push(event.data)
       }
-    }, 30000)
+      
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' })
+        await processAudioBlob(audioBlob)
+      }
+      
+      mediaRecorder.start()
+      
+      recordingTimeout = setTimeout(() => {
+        if (isRecording.value) {
+          stopRecording()
+        }
+      }, 30000)
+    }
     
   } catch (error) {
     console.error('录音启动失败:', error)
-    alert('麦克风访问失败，请检查权限设置')
+    alert('录音功能启动失败，请检查麦克风权限')
     resetRecordingState()
   }
 }
 
 const stopRecording = () => {
+  if (recognition && isRecording.value) {
+    recognition.stop()
+  }
+  
   if (mediaRecorder && mediaRecorder.state === 'recording') {
     mediaRecorder.stop()
   }
@@ -197,47 +280,128 @@ const stopRecording = () => {
   
   isRecording.value = false
   isListening.value = false
-  isProcessing.value = true
-  partnerStatus.value = '正在思考...'
+  
+  // 如果没有使用语音识别API，则进入处理状态
+  if (!recognition) {
+    isProcessing.value = true
+    partnerStatus.value = '正在处理音频...'
+  }
 }
 
-const processAudio = async (audioBlob) => {
+// 处理语音识别结果
+const handleSpeechResult = async (transcript) => {
+  console.log('语音识别结果:', transcript)
+  
+  // 添加用户消息
+  const userMessage = {
+    id: Date.now(),
+    text: transcript,
+    isUser: true,
+    timestamp: new Date()
+  }
+  messages.push(userMessage)
+  
+  // 停止录音并开始处理
+  stopRecording()
+  isProcessing.value = true
+  partnerStatus.value = '正在思考您的问题...'
+  
+  // 发送到AI模型
+  await sendToAIModel(transcript)
+}
+
+// 发送到后端API（遵循项目标准格式）
+const sendToAIModel = async (userInput) => {
   try {
-    // 模拟语音识别和AI处理
-    await new Promise(resolve => setTimeout(resolve, 1500))
+    // 按照项目标准格式调用后端API
+    const response = await axios.post('http://127.0.0.1:8000/chat/', {
+      "prompt": userInput,
+      "history": '',
+      "system": '你现在是由SocialAI开发的温暖智能助手灵犀，专门为用户提供贴心的对话交流服务。你的任务是以温暖、体贴的方式与用户进行自然对话，帮助用户解决问题，分享情感，提供有价值的建议和陪伴。'
+    })
     
-    // 添加用户消息
-    const userMessage = {
-      id: Date.now(),
-      text: '这是一条模拟的用户语音转文字内容',
-      isUser: true,
-      timestamp: new Date()
-    }
-    messages.push(userMessage)
-    
-    // 模拟AI回复
-    setTimeout(async () => {
+    if (response.data && response.data.result) {
+      // AI回复成功
       isAISpeaking.value = true
       currentEmotion.value = 'happy'
       partnerStatus.value = '正在回复中...'
       
       const aiMessage = {
         id: Date.now() + 1,
-        text: '我理解您的想法，让我为您提供一些建议...',
+        text: response.data.result,
         isUser: false,
         timestamp: new Date()
       }
       messages.push(aiMessage)
       
-      // 模拟AI说话时间
+      // 使用语音合成播放AI回复
+      speakText(response.data.result)
+      
+      // 根据回复长度调整AI说话时间
       setTimeout(() => {
         isAISpeaking.value = false
         currentEmotion.value = 'neutral'
         partnerStatus.value = '我在这里，请继续交流'
         isProcessing.value = false
-      }, 3000)
+      }, Math.max(3000, response.data.result.length * 100))
       
-    }, 500)
+    } else {
+      throw new Error('后端API返回格式错误')
+    }
+    
+  } catch (error) {
+    console.error('后端API调用失败:', error)
+    
+    // 显示错误并提供备用回复
+    const errorMessage = {
+      id: Date.now() + 1,
+      text: '抱歉，我暂时无法连接到AI服务。请稍后重试，或者检查网络连接。',
+      isUser: false,
+      timestamp: new Date()
+    }
+    messages.push(errorMessage)
+    
+    partnerStatus.value = '连接失败，请重试'
+    isProcessing.value = false
+    isAISpeaking.value = false
+    currentEmotion.value = 'neutral'
+  }
+}
+
+// 语音合成播放AI回复
+const speakText = (text) => {
+  if ('speechSynthesis' in window) {
+    const utterance = new SpeechSynthesisUtterance(text)
+    utterance.lang = 'zh-CN'
+    utterance.rate = 0.9
+    utterance.pitch = 1.1
+    utterance.volume = 0.8
+    
+    utterance.onstart = () => {
+      console.log('开始语音播放')
+    }
+    
+    utterance.onend = () => {
+      console.log('语音播放结束')
+    }
+    
+    utterance.onerror = (event) => {
+      console.error('语音合成错误:', event.error)
+    }
+    
+    speechSynthesis.speak(utterance)
+  }
+}
+
+// 备用方案：处理音频文件（当不支持语音识别API时）
+const processAudioBlob = async (audioBlob) => {
+  try {
+    // 这里可以集成其他语音转文字服务，如百度、阿里云等
+    // 目前提供一个模拟实现
+    await new Promise(resolve => setTimeout(resolve, 1500))
+    
+    const simulatedTranscript = '这是通过音频文件模拟识别的文字内容'
+    await handleSpeechResult(simulatedTranscript)
     
   } catch (error) {
     console.error('音频处理失败:', error)
@@ -280,21 +444,48 @@ const formatTime = (timestamp) => {
 
 // 生命周期
 onMounted(() => {
+  // 初始化语音识别
+  initSpeechRecognition()
+  
   // 初始化欢迎消息
   messages.push({
     id: 1,
-    text: '你好！我是灵犀，您的AI伙伴。点击下方的麦克风按钮开始我们的对话吧！',
+    text: '你好！我是灵犀，您的AI伙伴。点击下方的麦克风按钮开始我们的语音对话吧！',
     isUser: false,
     timestamp: new Date()
   })
+  
+  // 检查浏览器语音功能支持
+  if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+    messages.push({
+      id: 2,
+      text: '您的浏览器不支持语音识别功能，建议使用Chrome浏览器以获得最佳体验。',
+      isUser: false,
+      timestamp: new Date()
+    })
+  }
 })
 
 onUnmounted(() => {
+  // 清理语音识别
+  if (recognition) {
+    recognition.stop()
+    recognition = null
+  }
+  
+  // 清理音频流
   if (audioStream) {
     audioStream.getTracks().forEach(track => track.stop())
   }
+  
+  // 清理定时器
   if (recordingTimeout) {
     clearTimeout(recordingTimeout)
+  }
+  
+  // 停止语音合成
+  if ('speechSynthesis' in window) {
+    speechSynthesis.cancel()
   }
 })
 </script>
@@ -730,7 +921,7 @@ onUnmounted(() => {
 }
 
 /* 录音提示 */
-.recording-hint {
+.recording-hint, .processing-hint {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -745,6 +936,34 @@ onUnmounted(() => {
   border-radius: 50%;
   background: #ff6b6b;
   animation: pulse 1s infinite;
+}
+
+.thinking-dots {
+  display: flex;
+  gap: 3px;
+}
+
+.thinking-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #d4c5a9;
+  animation: thinkingBounce 1.4s infinite ease-in-out both;
+}
+
+.thinking-dots span:nth-child(1) { animation-delay: -0.32s; }
+.thinking-dots span:nth-child(2) { animation-delay: -0.16s; }
+.thinking-dots span:nth-child(3) { animation-delay: 0s; }
+
+@keyframes thinkingBounce {
+  0%, 80%, 100% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
 }
 
 @keyframes pulse {
