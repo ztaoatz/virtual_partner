@@ -1,0 +1,30 @@
+{
+  // ===== Git 相关优化 =====
+  "git.enabled": true,
+  "git.autofetch": false,              // 禁用自动 fetch，避免频繁卡顿
+  "git.showProgress": false,           // 关闭 Git 进度提示
+  "git.postCommitCommand": "none",     // 提交后不执行额外命令
+  "git.autoRepositoryDetection": "openEditors", // 只检测已打开文件夹里的仓库
+
+  // ===== 文件监视优化 =====
+  "files.watcherExclude": {
+    "**/.git/objects/**": true,
+    "**/.git/subtree-cache/**": true,
+    "**/node_modules/**": true,
+    "**/dist/**": true,
+    "**/build/**": true,
+    "**/out/**": true
+  },
+
+  // ===== 搜索优化 =====
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/build": true,
+    "**/out": true
+  },
+
+  // ===== 资源管理器优化 =====
+  "explorer.excludeGitIgnore": true,   // 遵循 .gitignore 隐藏文件
+  "scm.providers.enabled": ["git"]     // 只启用 Git，不加载其它 VCS
+}
