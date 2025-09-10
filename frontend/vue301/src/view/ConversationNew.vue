@@ -114,13 +114,80 @@
       <svg viewBox="0 0 24 24" width="20" height="20">
         <path d="M12,8A4,4 0 0,0 8,12A4,4 0 0,0 12,16A4,4 0 0,0 16,12A4,4 0 0,0 12,8M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z" fill="currentColor"/>
       </svg>
-    </div>
-
-    <!-- 文本显示切换按钮 -->
+    </div>    <!-- 文本显示切换按钮 -->
     <div class="text-toggle" @click="toggleText">
       <svg viewBox="0 0 24 24" width="18" height="18">
         <path d="M9,22A1,1 0 0,1 8,21V18H4A2,2 0 0,1 2,16V4C2,2.89 2.9,2 4,2H20A2,2 0 0,1 22,4V16A2,2 0 0,1 20,18H13.9L10.2,21.71C10,21.9 9.75,22 9.5,22H9M4,4V16H8.5L12,19.5V16H20V4H4Z" fill="currentColor"/>
       </svg>
+    </div>
+
+    <!-- 情绪日记按钮 -->
+    <div class="diary-toggle" @click="openDiary" title="情绪日记">
+      <svg viewBox="0 0 24 24" width="18" height="18">
+        <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" fill="currentColor"/>
+      </svg>
+    </div>
+
+    <!-- 情绪日记模态框 -->
+    <div v-if="showDiary" class="diary-modal">
+      <div class="diary-content">
+        <div class="diary-header">
+          <h3>情绪日记</h3>
+          <button @click="closeDiary" class="close-btn">&times;</button>
+        </div>
+        
+        <div class="diary-body">
+          <!-- 日期选择器 -->
+          <div class="date-selector">
+            <input 
+              type="date" 
+              v-model="selectedDate" 
+              @change="loadDiaryForDate"
+              class="date-input"
+            />
+          </div>
+          
+          <!-- 日记内容显示 -->
+          <div class="diary-display" v-if="diaryData.content">
+            <div class="emotion-summary">
+              <h4>今日情绪总结</h4>
+              <div class="emotion-tags">
+                <span v-for="emotion in diaryData.emotions" :key="emotion" class="emotion-tag">
+                  {{ emotion }}
+                </span>
+              </div>
+            </div>
+            
+            <div class="diary-text">
+              <h4>对话日记</h4>
+              <p>{{ diaryData.content }}</p>
+            </div>
+            
+            <div class="conversation-stats">
+              <h4>对话统计</h4>
+              <div class="stats-grid">
+                <div class="stat-item">
+                  <span class="stat-label">对话轮数</span>
+                  <span class="stat-value">{{ diaryData.messageCount }}</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">主要话题</span>
+                  <span class="stat-value">{{ diaryData.mainTopic }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- 空状态 -->
+          <div v-else class="empty-diary">
+            <div class="empty-icon">📝</div>
+            <p>该日期暂无情绪日记</p>
+            <button @click="generateDiary" class="generate-btn" :disabled="messages.length === 0">
+              生成今日日记
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -142,6 +209,17 @@ const isPressed = ref(false)
 const showText = ref(true)
 const currentEmotion = ref('neutral')
 const partnerStatus = ref('准备就绪，随时为您服务')
+
+// 情绪日记相关
+const showDiary = ref(false)
+const selectedDate = ref(new Date().toISOString().split('T')[0])
+const diaryData = reactive({
+  content: '',
+  emotions: [],
+  messageCount: 0,
+  mainTopic: ''
+})
+const diaryDates = reactive(new Set())
 
 // 消息数据
 const messages = reactive([])
@@ -408,14 +486,26 @@ const speakText = (text) => {
     
     utterance.onstart = () => {
       console.log('开始语音播放')
+      // 开始嘴部动画
+      if (nahidaRef.value) {
+        nahidaRef.value.startTalking()
+      }
     }
     
     utterance.onend = () => {
       console.log('语音播放结束')
+      // 停止嘴部动画
+      if (nahidaRef.value) {
+        nahidaRef.value.stopTalking()
+      }
     }
     
     utterance.onerror = (event) => {
       console.error('语音合成错误:', event.error)
+      // 出错时也要停止嘴部动画
+      if (nahidaRef.value) {
+        nahidaRef.value.stopTalking()
+      }
     }
     
     speechSynthesis.speak(utterance)
@@ -462,6 +552,167 @@ const toggleText = () => {
 const openSettings = () => {
   // 跳转到设置页面或打开设置模态框
   console.log('打开设置')
+}
+
+// 情绪日记相关方法
+const openDiary = () => {
+  showDiary.value = true
+  loadDiaryForDate()
+}
+
+const closeDiary = () => {
+  showDiary.value = false
+}
+
+const loadDiaryForDate = async () => {
+  try {
+    // 从本地存储加载日记数据
+    const storedDiary = localStorage.getItem(`diary_${selectedDate.value}`)
+    if (storedDiary) {
+      const parsed = JSON.parse(storedDiary)
+      Object.assign(diaryData, parsed)
+    } else {
+      // 清空数据
+      diaryData.content = ''
+      diaryData.emotions = []
+      diaryData.messageCount = 0
+      diaryData.mainTopic = ''
+    }
+  } catch (error) {
+    console.error('加载日记失败:', error)
+  }
+}
+
+const generateDiary = async () => {
+  if (messages.length === 0) {
+    alert('暂无对话内容，无法生成日记')
+    return
+  }
+
+  try {
+    // 收集今日对话内容
+    const todayMessages = messages.filter(msg => {
+      const msgDate = new Date(msg.timestamp).toISOString().split('T')[0]
+      return msgDate === selectedDate.value
+    })
+
+    if (todayMessages.length === 0) {
+      alert('该日期无对话记录')
+      return
+    }
+
+    // 分析对话内容
+    const userMessages = todayMessages.filter(msg => msg.isUser)
+    const aiMessages = todayMessages.filter(msg => !msg.isUser)
+    
+    // 提取情绪关键词
+    const emotionKeywords = extractEmotions(userMessages.map(msg => msg.text).join(' '))
+    
+    // 生成日记内容
+    const diaryContent = await generateDiaryContent(todayMessages)
+    
+    // 分析主要话题
+    const mainTopic = extractMainTopic(userMessages.map(msg => msg.text).join(' '))
+
+    // 保存日记数据
+    const diary = {
+      content: diaryContent,
+      emotions: emotionKeywords,
+      messageCount: Math.floor(todayMessages.length / 2),
+      mainTopic: mainTopic,
+      date: selectedDate.value
+    }
+
+    Object.assign(diaryData, diary)
+    
+    // 保存到本地存储
+    localStorage.setItem(`diary_${selectedDate.value}`, JSON.stringify(diary))
+    diaryDates.add(selectedDate.value)
+
+    alert('日记生成成功！')
+    
+  } catch (error) {
+    console.error('生成日记失败:', error)
+    alert('生成日记失败，请重试')
+  }
+}
+
+const extractEmotions = (text) => {
+  const emotionMap = {
+    '开心': ['开心', '高兴', '快乐', '兴奋', '愉快', '喜悦'],
+    '难过': ['难过', '伤心', '悲伤', '沮丧', '失落', '郁闷'],
+    '焦虑': ['焦虑', '紧张', '担心', '不安', '忧虑', '压力'],
+    '愤怒': ['愤怒', '生气', '烦躁', '恼火', '气愤'],
+    '平静': ['平静', '安静', '轻松', '舒适', '宁静'],
+    '疲惫': ['累', '疲惫', '疲劳', '困', '乏力']
+  }
+
+  const detectedEmotions = []
+  for (const [emotion, keywords] of Object.entries(emotionMap)) {
+    if (keywords.some(keyword => text.includes(keyword))) {
+      detectedEmotions.push(emotion)
+    }
+  }
+
+  return detectedEmotions.length > 0 ? detectedEmotions : ['平静']
+}
+
+const extractMainTopic = (text) => {
+  const topics = [
+    { name: '工作学习', keywords: ['工作', '学习', '项目', '任务', '考试', '作业', '职场', '同事'] },
+    { name: '人际关系', keywords: ['朋友', '家人', '同事', '关系', '交流', '沟通', '聊天'] },
+    { name: '健康生活', keywords: ['健康', '运动', '饮食', '睡眠', '休息', '锻炼', '身体'] },
+    { name: '情感表达', keywords: ['感受', '情绪', '心情', '想法', '感觉', '体验'] },
+    { name: '兴趣爱好', keywords: ['游戏', '电影', '音乐', '阅读', '旅行', '美食', '艺术'] },
+    { name: '日常生活', keywords: ['日常', '生活', '今天', '昨天', '计划', '安排'] }
+  ]
+
+  let maxScore = 0
+  let mainTopic = '日常交流'
+
+  for (const topic of topics) {
+    const score = topic.keywords.reduce((acc, keyword) => {
+      return acc + (text.split(keyword).length - 1)
+    }, 0)
+    
+    if (score > maxScore) {
+      maxScore = score
+      mainTopic = topic.name
+    }
+  }
+
+  return mainTopic
+}
+
+const generateDiaryContent = async (messages) => {
+  // 简化版本：基于对话内容生成总结
+  const userMessages = messages.filter(msg => msg.isUser)
+  const aiMessages = messages.filter(msg => !msg.isUser)
+  
+  if (userMessages.length === 0) {
+    return '今天没有进行对话。'
+  }
+
+  const topics = userMessages.map(msg => msg.text).join('，')
+  const emotions = extractEmotions(topics)
+  
+  let summary = `今天与AI助手进行了${Math.floor(messages.length / 2)}轮对话。`
+  
+  if (emotions.length > 0) {
+    summary += `主要的情绪状态是${emotions.join('、')}。`
+  }
+  
+  summary += `主要讨论了关于${extractMainTopic(topics)}的话题。`
+  
+  if (userMessages.length > 3) {
+    summary += '对话内容丰富，涵盖了多个方面的交流。'
+  } else if (userMessages.length > 1) {
+    summary += '进行了有意义的交流互动。'
+  } else {
+    summary += '虽然对话简短，但也是一次有价值的交流。'
+  }
+
+  return summary
 }
 
 const formatTime = (timestamp) => {
@@ -1238,9 +1489,257 @@ onUnmounted(() => {
     width: 35px;
     height: 35px;
   }
-  
-  .text-toggle {
+    .text-toggle {
     right: 60px;
+  }
+}
+
+/* 情绪日记样式 */
+.diary-toggle {
+  position: fixed;
+  bottom: 130px;
+  right: 20px;
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #d4c5a9, #b8a082);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(212, 197, 169, 0.3);
+  color: white;
+  z-index: 100;
+}
+
+.diary-toggle:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(212, 197, 169, 0.4);
+}
+
+.diary-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(5px);
+}
+
+.diary-content {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border-radius: 20px;
+  width: 90%;
+  max-width: 500px;
+  max-height: 80vh;
+  overflow: hidden;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.diary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 25px;
+  border-bottom: 1px solid rgba(212, 197, 169, 0.2);
+  background: linear-gradient(135deg, rgba(212, 197, 169, 0.1), rgba(184, 160, 130, 0.1));
+}
+
+.diary-header h3 {
+  margin: 0;
+  color: #8b7355;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #8b7355;
+  cursor: pointer;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.close-btn:hover {
+  background: rgba(212, 197, 169, 0.2);
+}
+
+.diary-body {
+  padding: 25px;
+  max-height: calc(80vh - 80px);
+  overflow-y: auto;
+}
+
+.date-selector {
+  margin-bottom: 20px;
+}
+
+.date-input {
+  width: 100%;
+  padding: 12px 15px;
+  border: 2px solid rgba(212, 197, 169, 0.3);
+  border-radius: 10px;
+  font-size: 14px;
+  background: rgba(255, 255, 255, 0.8);
+  color: #8b7355;
+  transition: all 0.3s ease;
+}
+
+.date-input:focus {
+  outline: none;
+  border-color: #d4c5a9;
+  box-shadow: 0 0 10px rgba(212, 197, 169, 0.2);
+}
+
+.diary-display {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.emotion-summary h4,
+.diary-text h4,
+.conversation-stats h4 {
+  margin: 0 0 12px 0;
+  color: #8b7355;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.emotion-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.emotion-tag {
+  background: linear-gradient(135deg, #d4c5a9, #b8a082);
+  color: white;
+  padding: 6px 12px;
+  border-radius: 15px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.diary-text p {
+  margin: 0;
+  line-height: 1.6;
+  color: #666;
+  background: rgba(255, 255, 255, 0.6);
+  padding: 15px;
+  border-radius: 10px;
+  border-left: 4px solid #d4c5a9;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+}
+
+.stat-item {
+  background: rgba(255, 255, 255, 0.6);
+  padding: 15px;
+  border-radius: 10px;
+  text-align: center;
+  border: 1px solid rgba(212, 197, 169, 0.2);
+}
+
+.stat-label {
+  display: block;
+  font-size: 12px;
+  color: #999;
+  margin-bottom: 5px;
+}
+
+.stat-value {
+  display: block;
+  font-size: 16px;
+  font-weight: 600;
+  color: #8b7355;
+}
+
+.empty-diary {
+  text-align: center;
+  padding: 40px 20px;
+  color: #999;
+}
+
+.empty-icon {
+  font-size: 48px;
+  margin-bottom: 15px;
+}
+
+.empty-diary p {
+  margin: 0 0 20px 0;
+  font-size: 14px;
+}
+
+.generate-btn {
+  background: linear-gradient(135deg, #d4c5a9, #b8a082);
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 25px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(212, 197, 169, 0.3);
+}
+
+.generate-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(212, 197, 169, 0.4);
+}
+
+.generate-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* 响应式适配 */
+@media (max-width: 768px) {
+  .diary-toggle {
+    bottom: 120px;
+    right: 15px;
+    width: 35px;
+    height: 35px;
+  }
+  
+  .diary-content {
+    width: 95%;
+    max-height: 85vh;
+  }
+  
+  .diary-header {
+    padding: 15px 20px;
+  }
+  
+  .diary-body {
+    padding: 20px;
+  }
+  
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
   }
 }
 </style>
