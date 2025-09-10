@@ -16,7 +16,30 @@ const routes = [
   {
       path: '/',
       redirect: '/start', // 重定向根路径到 /art
-    },
+    },  {
+    path: '/live2d-demo',
+    name: 'Live2DDemo',
+    component: () => import('../view/Live2DDemo.vue'),
+    meta: {
+      title: 'Live2D模型演示'
+    }
+  },
+  {
+    path: '/live2d-simple',
+    name: 'Live2DSimple',
+    component: () => import('../view/Live2DSimple.vue'),
+    meta: {
+      title: '简单Live2D示例'
+    }
+  },
+  {
+    path: '/conversation-live2d',
+    name: 'ConversationWithLive2D',
+    component: () => import('../view/ConversationWithLive2D.vue'),
+    meta: {
+      title: '带Live2D的对话页面'
+    }
+  },
   {
     path: "/login",
     name: "login",
