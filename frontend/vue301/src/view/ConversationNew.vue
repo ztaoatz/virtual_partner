@@ -7,24 +7,28 @@
       <div class="cloud cloud3">☁</div>
       <div class="cloud cloud4">☁</div>
       <div class="cloud cloud5">☁</div>
-    </div>
-
-    <!-- 虚拟伙伴形象区域 -->
+    </div>    <!-- 虚拟伙伴形象区域 -->
     <div class="virtual-partner-area">
       <div class="partner-avatar" :class="{ 'speaking': isAISpeaking, 'listening': isListening }">
-        <div class="avatar-container">
-          <img src="@/assets/linxi.png" alt="灵犀" class="avatar-image" />
-          <div class="expression-overlay" :class="currentEmotion"></div>
+        <div class="live2d-avatar-container">
+          <!-- Live2D Nahida 模型 -->
+          <Live2DCanvas 
+            ref="nahidaRef"
+            :width="400"
+            :height="500"
+            :scale="0.12"
+            :modelPath="'/live2d/Nahida_1080/Nahida_1080.model3.json'"
+          />
           
-          <!-- 说话时的声波效果 -->
-          <div v-if="isAISpeaking" class="sound-waves">
+          <!-- 说话时的声波效果覆盖层 -->
+          <div v-if="isAISpeaking" class="sound-waves-overlay">
             <div class="wave wave1"></div>
             <div class="wave wave2"></div>
             <div class="wave wave3"></div>
           </div>
           
-          <!-- 倾听时的呼吸效果 -->
-          <div v-if="!isAISpeaking && !isListening" class="breathing-glow"></div>
+          <!-- 倾听时的呼吸效果覆盖层 -->
+          <div v-if="!isAISpeaking && !isListening" class="breathing-glow-overlay"></div>
         </div>
         
         <!-- 伙伴状态文本 -->
@@ -124,6 +128,10 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import axios from 'axios'
+import Live2DCanvas from '@/components/Live2DCanvas.vue'
+
+// Live2D 相关引用
+const nahidaRef = ref(null)
 
 // 响应式数据
 const isRecording = ref(false)
@@ -218,6 +226,12 @@ const startRecording = async () => {
     isListening.value = true
     partnerStatus.value = '我在认真倾听...'
     
+    // 触发Live2D模型倾听动作
+    if (nahidaRef.value) {
+      nahidaRef.value.playMotion('TapHead')
+      nahidaRef.value.setExpression('Shy')
+    }
+    
     // 优先使用语音识别API
     if (recognition) {
       recognition.start()
@@ -273,13 +287,18 @@ const stopRecording = () => {
   if (audioStream) {
     audioStream.getTracks().forEach(track => track.stop())
   }
-  
-  if (recordingTimeout) {
+    if (recordingTimeout) {
     clearTimeout(recordingTimeout)
   }
   
   isRecording.value = false
   isListening.value = false
+  
+  // 恢复Live2D模型为默认状态
+  if (nahidaRef.value) {
+    nahidaRef.value.setExpression('black') // 默认表情
+    nahidaRef.value.playMotion('Idle') // 待机动作
+  }
   
   // 如果没有使用语音识别API，则进入处理状态
   if (!recognition) {
@@ -319,12 +338,17 @@ const sendToAIModel = async (userInput) => {
       "history": '',
       "system": '你现在是由SocialAI开发的温暖智能助手灵犀，专门为用户提供贴心的对话交流服务。你的任务是以温暖、体贴的方式与用户进行自然对话，帮助用户解决问题，分享情感，提供有价值的建议和陪伴。'
     })
-    
-    if (response.data && response.data.result) {
+      if (response.data && response.data.result) {
       // AI回复成功
       isAISpeaking.value = true
       currentEmotion.value = 'happy'
       partnerStatus.value = '正在回复中...'
+      
+      // 触发Live2D模型说话动作
+      if (nahidaRef.value) {
+        nahidaRef.value.playMotion('TapBody')
+        nahidaRef.value.setExpression('Happy1')
+      }
       
       const aiMessage = {
         id: Date.now() + 1,
@@ -336,13 +360,18 @@ const sendToAIModel = async (userInput) => {
       
       // 使用语音合成播放AI回复
       speakText(response.data.result)
-      
-      // 根据回复长度调整AI说话时间
+        // 根据回复长度调整AI说话时间
       setTimeout(() => {
         isAISpeaking.value = false
         currentEmotion.value = 'neutral'
         partnerStatus.value = '我在这里，请继续交流'
         isProcessing.value = false
+        
+        // 恢复Live2D模型为默认状态
+        if (nahidaRef.value) {
+          nahidaRef.value.setExpression('black') // 默认表情
+          nahidaRef.value.playMotion('Idle') // 待机动作
+        }
       }, Math.max(3000, response.data.result.length * 100))
       
     } else {
@@ -586,6 +615,32 @@ onUnmounted(() => {
   transition: transform 0.3s ease;
 }
 
+.live2d-avatar-container {
+  position: relative;
+  width: 400px;
+  height: 500px;
+  margin: 0 auto 20px;
+  border-radius: 20px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.partner-avatar.speaking .live2d-avatar-container {
+  transform: scale(1.02);
+  border-color: #d4c5a9;
+  box-shadow: 0 25px 70px rgba(212, 197, 169, 0.3);
+}
+
+.partner-avatar.listening .live2d-avatar-container {
+  border-color: #a8edea;
+  box-shadow: 0 25px 70px rgba(168, 237, 234, 0.3);
+}
+
+/* 保留原有的avatar-container样式以防需要回退 */
 .avatar-container {
   position: relative;
   width: 200px;
@@ -703,6 +758,70 @@ onUnmounted(() => {
   50% {
     opacity: 0.6;
     transform: scale(1.05);
+  }
+}
+
+/* Live2D 覆盖层效果 */
+.sound-waves-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 300px;
+  height: 300px;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.sound-waves-overlay .wave {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border: 3px solid #4CAF50;
+  border-radius: 50%;
+  opacity: 0;
+  animation: ripple 2s infinite;
+}
+
+.sound-waves-overlay .wave1 { animation-delay: 0s; }
+.sound-waves-overlay .wave2 { animation-delay: 0.5s; }
+.sound-waves-overlay .wave3 { animation-delay: 1s; }
+
+@keyframes ripple {
+  0% {
+    width: 20px;
+    height: 20px;
+    opacity: 1;
+  }
+  100% {
+    width: 150px;
+    height: 150px;
+    opacity: 0;
+  }
+}
+
+.breathing-glow-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 20px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+  animation: breatheOverlay 4s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 10;
+}
+
+@keyframes breatheOverlay {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.02);
   }
 }
 
