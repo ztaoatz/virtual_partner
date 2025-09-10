@@ -42,14 +42,21 @@ export async function init(options = {}) {
     });    console.log('Live2D模型加载成功');
 
     // 将模型添加到舞台
-    app.stage.addChild(model);
-
-    // 设置模型缩放 - 使用较小的缩放值确保能看到
-    model.scale.set(0.15);
+    app.stage.addChild(model);    // 设置模型缩放 - 使用较小的缩放值确保能看到
+    model.scale.set(0.15);    // 设置模型锚点为中心，确保居中对齐
+    model.anchor.set(0.5, 0.5);
     
-    // 设置模型位置 - 相对于画布中心
-    model.x = width / 2;
-    model.y = height / 2;
+    // 智能位置计算 - 根据画布尺寸自适应调整
+    const centerX = width / 2;
+    const centerY = height / 2;
+    
+    // 根据画布宽度进行微调，确保在不同尺寸下都能良好居中
+    const xOffset = width > 500 ? -8 : -5; // 大画布偏移更多
+    
+    model.x = centerX + xOffset;
+    model.y = centerY;
+    
+    console.log(`模型位置设置: x=${model.x}, y=${model.y}, 画布尺寸: ${width}×${height}`);
 
     // 启用交互（替代 trackedPointers）
     model.interactive = true;
