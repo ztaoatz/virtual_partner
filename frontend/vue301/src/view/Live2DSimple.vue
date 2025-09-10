@@ -10,14 +10,13 @@
         <button @click="interactWithModel">与模型互动</button>
       </div>
     </div>
-    
-    <!-- Live2D模型区域 -->
-    <div class="live2d-area">
-      <Live2DCanvas 
+      <!-- Live2D模型区域 -->
+    <div class="live2d-area">      <Live2DCanvas 
         ref="live2dRef"
         :width="400"
         :height="600"
-        :scale="0.3"
+        :scale="0.15"
+        :modelPath="'/live2d/Nahida_1080/Nahida_1080.model3.json'"
       />
     </div>
   </div>
@@ -84,8 +83,14 @@ const interactWithModel = () => {
 
 .live2d-area {
   width: 400px;
+  height: 600px;
   background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
   border-left: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 15px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 </style>

@@ -16,38 +16,46 @@ export async function init(options = {}) {
     width = 1920,
     height = 1080,
     transparent = true
-  } = options;
+  } = options;  try {
+    // 获取canvas元素
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) {
+      throw new Error(`找不到ID为 ${canvasId} 的canvas元素`);
+    }
 
-  try {
+    // 创建PIXI应用 - 使用PIXI v6的API
+    const app = new PIXI.Application({
+      view: canvas,
+      transparent: transparent,
+      antialias: true,
+      width: width,
+      height: height,
+      autoDensity: true,
+      autoStart: true
+    });
+
+    console.log('PIXI应用创建成功');
+
     // 加载模型
     const model = await Live2DModel.from(modelPath, { 
       motionPreload: MotionPreloadStrategy.NONE 
-    });
-
-    // 创建模型对象
-    const app = new PIXI.Application({
-      // 配置模型舞台
-      view: document.getElementById(canvasId),
-      // 背景是否透明
-      transparent,
-      autoDensity: true,
-      autoResize: true,
-      antialias: true,
-      // 高度
-      height,
-      // 宽度
-      width
-    });
+    });    console.log('Live2D模型加载成功');
 
     // 将模型添加到舞台
     app.stage.addChild(model);
 
-    // 设置模型位置和缩放
-    model.x = app.view.width / 2;
-    model.y = app.view.height / 2;
-    model.scale.set(0.3); // 适当缩放模型
+    // 设置模型缩放 - 使用较小的缩放值确保能看到
+    model.scale.set(0.15);
+    
+    // 设置模型位置 - 相对于画布中心
+    model.x = width / 2;
+    model.y = height / 2;
 
-    // 可选：添加交互功能
+    // 启用交互（替代 trackedPointers）
+    model.interactive = true;
+    model.buttonMode = true;
+
+    // 添加交互功能
     model.on('hit', (hitAreas) => {
       console.log('模型被点击，命中区域：', hitAreas);
       // 播放随机动作

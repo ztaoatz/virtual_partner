@@ -31,13 +31,27 @@ const routes = [
     meta: {
       title: '简单Live2D示例'
     }
-  },
-  {
+  },  {
     path: '/conversation-live2d',
     name: 'ConversationWithLive2D',
     component: () => import('../view/ConversationWithLive2D.vue'),
     meta: {
       title: '带Live2D的对话页面'
+    }
+  },  {
+    path: '/live2d-test',
+    name: 'Live2DTest',
+    component: () => import('../view/Live2DTest.vue'),
+    meta: {
+      title: 'Live2D简化测试'
+    }
+  },
+  {
+    path: '/live2d-switcher',
+    name: 'Live2DModelSwitcher',
+    component: () => import('../view/Live2DModelSwitcher.vue'),
+    meta: {
+      title: 'Live2D模型切换器'
     }
   },
   {
