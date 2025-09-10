@@ -7,28 +7,24 @@
       <div class="cloud cloud3">☁</div>
       <div class="cloud cloud4">☁</div>
       <div class="cloud cloud5">☁</div>
-    </div>    <!-- 虚拟伙伴形象区域 -->
+    </div>
+
+    <!-- 虚拟伙伴形象区域 -->
     <div class="virtual-partner-area">
       <div class="partner-avatar" :class="{ 'speaking': isAISpeaking, 'listening': isListening }">
-        <div class="live2d-avatar-container">
-          <!-- Live2D Nahida 模型 -->
-          <Live2DCanvas 
-            ref="nahidaRef"
-            :width="400"
-            :height="500"
-            :scale="0.12"
-            :modelPath="'/live2d/Nahida_1080/Nahida_1080.model3.json'"
-          />
+        <div class="avatar-container">
+          <img src="@/assets/linxi.png" alt="灵犀" class="avatar-image" />
+          <div class="expression-overlay" :class="currentEmotion"></div>
           
-          <!-- 说话时的声波效果覆盖层 -->
-          <div v-if="isAISpeaking" class="sound-waves-overlay">
+          <!-- 说话时的声波效果 -->
+          <div v-if="isAISpeaking" class="sound-waves">
             <div class="wave wave1"></div>
             <div class="wave wave2"></div>
             <div class="wave wave3"></div>
           </div>
           
-          <!-- 倾听时的呼吸效果覆盖层 -->
-          <div v-if="!isAISpeaking && !isListening" class="breathing-glow-overlay"></div>
+          <!-- 倾听时的呼吸效果 -->
+          <div v-if="!isAISpeaking && !isListening" class="breathing-glow"></div>
         </div>
         
         <!-- 伙伴状态文本 -->
@@ -123,15 +119,50 @@
       </svg>
     </div>
   </div>
+
+  <div class="conversation-container">
+    <!-- ...原有内容... -->
+
+    <!-- 情绪日记入口按钮 -->
+    <div class="diary-entry" @click="showDiary = true">
+      <svg viewBox="0 0 24 24" width="22" height="22">
+        <path d="M5 3a2 2 0 0 0-2 2v16l7-3 7 3V5a2 2 0 0 0-2-2H5z" fill="currentColor"/>
+      </svg>
+      <span>情绪日记</span>
+    </div>
+
+    <!-- 情绪日记弹窗 -->
+    <div class="diary-modal" v-if="showDiary">
+      <div class="diary-header">
+        <span>情绪日记</span>
+        <button class="close-btn" @click="showDiary = false">×</button>
+      </div>
+      <div class="diary-date-list">
+        <button 
+          v-for="date in diaryDates" 
+          :key="date" 
+          :class="{active: date === selectedDate}" 
+          @click="selectedDate = date"
+        >{{ date }}</button>
+      </div>
+      <div class="diary-content">
+        <div v-if="selectedDate">
+          <div>情绪值：{{ diaryData[selectedDate]?.value ?? '-' }}</div>
+          <div>日记内容：</div>
+          <div class="diary-text">{{ diaryData[selectedDate]?.text ?? '暂无内容' }}</div>
+        </div>
+        <div v-else>请选择日期</div>
+      </div>
+      <button class="generate-btn" @click="generateDiary">生成今日情绪日记</button>
+    </div>
+
+    <!-- ...原有内容... -->
+  </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import axios from 'axios'
-import Live2DCanvas from '@/components/Live2DCanvas.vue'
-
-// Live2D 相关引用
-const nahidaRef = ref(null)
 
 // 响应式数据
 const isRecording = ref(false)
@@ -142,7 +173,19 @@ const isPressed = ref(false)
 const showText = ref(true)
 const currentEmotion = ref('neutral')
 const partnerStatus = ref('准备就绪，随时为您服务')
+// 情绪日记相关
+const showDiary = ref(false)
+const diaryData = reactive({
+  // 示例数据
+  '2025-09-09': { value: 7, text: '今天心情不错，遇到一些小挑战但都顺利解决了。' },
+  '2025-09-10': { value: 5, text: '有点疲惫，但总体还好。' }
+})
+const diaryDates = computed(() => Object.keys(diaryData))
+const selectedDate = ref(diaryDates.value[diaryDates.value.length - 1] || '')
 
+const generateDiary = () => {
+  // 生成逻辑后续补充
+}
 // 消息数据
 const messages = reactive([])
 const recentMessages = computed(() => {
@@ -226,12 +269,6 @@ const startRecording = async () => {
     isListening.value = true
     partnerStatus.value = '我在认真倾听...'
     
-    // 触发Live2D模型倾听动作
-    if (nahidaRef.value) {
-      nahidaRef.value.playMotion('TapHead')
-      nahidaRef.value.setExpression('Shy')
-    }
-    
     // 优先使用语音识别API
     if (recognition) {
       recognition.start()
@@ -287,18 +324,13 @@ const stopRecording = () => {
   if (audioStream) {
     audioStream.getTracks().forEach(track => track.stop())
   }
-    if (recordingTimeout) {
+  
+  if (recordingTimeout) {
     clearTimeout(recordingTimeout)
   }
   
   isRecording.value = false
   isListening.value = false
-  
-  // 恢复Live2D模型为默认状态
-  if (nahidaRef.value) {
-    nahidaRef.value.setExpression('black') // 默认表情
-    nahidaRef.value.playMotion('Idle') // 待机动作
-  }
   
   // 如果没有使用语音识别API，则进入处理状态
   if (!recognition) {
@@ -333,22 +365,21 @@ const handleSpeechResult = async (transcript) => {
 const sendToAIModel = async (userInput) => {
   try {
     // 按照项目标准格式调用后端API
+    // 增加了 60000 毫秒 (60秒) 的超时设置
     const response = await axios.post('http://127.0.0.1:8000/chat/', {
       "prompt": userInput,
       "history": '',
       "system": '你现在是由SocialAI开发的温暖智能助手灵犀，专门为用户提供贴心的对话交流服务。你的任务是以温暖、体贴的方式与用户进行自然对话，帮助用户解决问题，分享情感，提供有价值的建议和陪伴。'
+    }, {
+      timeout: 60000 
     })
-      if (response.data && response.data.result) {
+    
+    // 检查响应数据和关键字段是否存在
+    if (response.data && response.data.result) {
       // AI回复成功
       isAISpeaking.value = true
       currentEmotion.value = 'happy'
       partnerStatus.value = '正在回复中...'
-      
-      // 触发Live2D模型说话动作
-      if (nahidaRef.value) {
-        nahidaRef.value.playMotion('TapBody')
-        nahidaRef.value.setExpression('Happy1')
-      }
       
       const aiMessage = {
         id: Date.now() + 1,
@@ -360,28 +391,41 @@ const sendToAIModel = async (userInput) => {
       
       // 使用语音合成播放AI回复
       speakText(response.data.result)
-        // 根据回复长度调整AI说话时间
+      
+      // 根据回复长度调整AI说话时间
       setTimeout(() => {
         isAISpeaking.value = false
         currentEmotion.value = 'neutral'
         partnerStatus.value = '我在这里，请继续交流'
         isProcessing.value = false
-        
-        // 恢复Live2D模型为默认状态
-        if (nahidaRef.value) {
-          nahidaRef.value.setExpression('black') // 默认表情
-          nahidaRef.value.playMotion('Idle') // 待机动作
-        }
       }, Math.max(3000, response.data.result.length * 100))
       
     } else {
-      throw new Error('后端API返回格式错误')
+      // 即使请求成功 (status 200)，但如果返回的数据格式不对，也抛出错误
+      throw new Error('后端API返回的数据格式不正确，缺少 result 字段。')
     }
     
   } catch (error) {
-    console.error('后端API调用失败:', error)
-    
-    // 显示错误并提供备用回复
+    // --- 这是新增的详细错误打印部分 ---
+    console.error("调用AI模型时发生错误:", error); // 打印原始错误对象
+
+    if (error.response) {
+      // 请求已发出，但服务器返回了错误状态码 (如 404, 500, 403 等)
+      console.error('后端服务器响应错误:', error.response.data);
+      console.error('HTTP状态码:', error.response.status);
+      console.error('响应头:', error.response.headers);
+    } else if (error.request) {
+      // 请求已发出，但没有收到任何响应
+      // 这通常是网络问题、CORS跨域问题或请求超时
+      console.error('后端无响应。请检查网络连接、CORS设置或后端服务器是否运行。');
+      console.error('请求详情:', error.request);
+    } else {
+      // 在设置请求时发生了错误，代码本身可能有问题
+      console.error('Axios请求配置错误:', error.message);
+    }
+    // --- 详细错误打印部分结束 ---
+
+    // 显示通用的错误信息给用户
     const errorMessage = {
       id: Date.now() + 1,
       text: '抱歉，我暂时无法连接到AI服务。请稍后重试，或者检查网络连接。',
@@ -390,6 +434,7 @@ const sendToAIModel = async (userInput) => {
     }
     messages.push(errorMessage)
     
+    // 更新UI状态
     partnerStatus.value = '连接失败，请重试'
     isProcessing.value = false
     isAISpeaking.value = false
@@ -520,6 +565,117 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* 情绪日记入口按钮 */
+.diary-entry {
+  position: fixed;
+  bottom: 40px;
+  right: 30px;
+  z-index: 10;
+  background: rgba(255,255,255,0.95);
+  border-radius: 50px;
+  box-shadow: 0 4px 16px rgba(212,197,169,0.18);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  cursor: pointer;
+  color: #8b6f47;
+  font-weight: 500;
+  border: 1px solid rgba(255,255,255,0.3);
+  transition: all 0.2s;
+}
+.diary-entry:hover {
+  background: #fdf2e6;
+  box-shadow: 0 8px 24px rgba(212,197,169,0.28);
+}
+
+/* 情绪日记弹窗 */
+.diary-modal {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 340px;
+  height: 100vh;
+  background: #fff;
+  box-shadow: -2px 0 24px rgba(212,197,169,0.18);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  padding: 0 0 24px 0;
+  animation: diarySlideIn 0.3s;
+}
+@keyframes diarySlideIn {
+  from { right: -340px; opacity: 0; }
+  to { right: 0; opacity: 1; }
+}
+.diary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 24px 12px 24px;
+  font-size: 18px;
+  font-weight: 600;
+  border-bottom: 1px solid #f8f4f0;
+}
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 22px;
+  cursor: pointer;
+  color: #8b6f47;
+}
+.diary-date-list {
+  display: flex;
+  gap: 8px;
+  padding: 16px 24px;
+  flex-wrap: wrap;
+}
+.diary-date-list button {
+  background: #fdf2e6;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 14px;
+  cursor: pointer;
+  color: #8b6f47;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+.diary-date-list button.active,
+.diary-date-list button:hover {
+  background: #d4c5a9;
+  color: #fff;
+}
+.diary-content {
+  flex: 1;
+  padding: 0 24px;
+  margin-bottom: 18px;
+  font-size: 15px;
+  color: #8b6f47;
+}
+.diary-text {
+  margin-top: 8px;
+  background: #f8f4f0;
+  border-radius: 8px;
+  padding: 10px;
+  min-height: 60px;
+}
+.generate-btn {
+  margin: 0 24px;
+  padding: 10px 0;
+  background: linear-gradient(135deg, #d4c5a9, #b8a082);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(212,197,169,0.12);
+  transition: background 0.2s;
+}
+.generate-btn:hover {
+  background: linear-gradient(135deg, #ff6b6b, #feca57);
+}
+
 .conversation-container {
   min-height: 100vh;
   background: linear-gradient(135deg, 
@@ -615,32 +771,6 @@ onUnmounted(() => {
   transition: transform 0.3s ease;
 }
 
-.live2d-avatar-container {
-  position: relative;
-  width: 400px;
-  height: 500px;
-  margin: 0 auto 20px;
-  border-radius: 20px;
-  overflow: hidden;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  border: 3px solid rgba(255, 255, 255, 0.3);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
-}
-
-.partner-avatar.speaking .live2d-avatar-container {
-  transform: scale(1.02);
-  border-color: #d4c5a9;
-  box-shadow: 0 25px 70px rgba(212, 197, 169, 0.3);
-}
-
-.partner-avatar.listening .live2d-avatar-container {
-  border-color: #a8edea;
-  box-shadow: 0 25px 70px rgba(168, 237, 234, 0.3);
-}
-
-/* 保留原有的avatar-container样式以防需要回退 */
 .avatar-container {
   position: relative;
   width: 200px;
@@ -758,70 +888,6 @@ onUnmounted(() => {
   50% {
     opacity: 0.6;
     transform: scale(1.05);
-  }
-}
-
-/* Live2D 覆盖层效果 */
-.sound-waves-overlay {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 300px;
-  height: 300px;
-  pointer-events: none;
-  z-index: 10;
-}
-
-.sound-waves-overlay .wave {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  border: 3px solid #4CAF50;
-  border-radius: 50%;
-  opacity: 0;
-  animation: ripple 2s infinite;
-}
-
-.sound-waves-overlay .wave1 { animation-delay: 0s; }
-.sound-waves-overlay .wave2 { animation-delay: 0.5s; }
-.sound-waves-overlay .wave3 { animation-delay: 1s; }
-
-@keyframes ripple {
-  0% {
-    width: 20px;
-    height: 20px;
-    opacity: 1;
-  }
-  100% {
-    width: 150px;
-    height: 150px;
-    opacity: 0;
-  }
-}
-
-.breathing-glow-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  border-radius: 20px;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
-  animation: breatheOverlay 4s ease-in-out infinite;
-  pointer-events: none;
-  z-index: 10;
-}
-
-@keyframes breatheOverlay {
-  0%, 100% {
-    opacity: 0.3;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.6;
-    transform: scale(1.02);
   }
 }
 
