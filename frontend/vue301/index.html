@@ -1,10 +1,12 @@
 <!DOCTYPE html>
-<html lang="en">
-  <head>
+<html lang="en">  <head>
     <meta charset="UTF-8" />
     <link rel="icon" href="/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Vite App</title>
+    <!-- Live2D 依赖 - 注意加载顺序，cubismcore要在live2d之前 -->
+    <script src="./src/library/live2dcubismcore.min.js"></script>
+    <script src="./src/library/live2d.min.js"></script>
   </head>
   <body>
     <div id="app"></div>
