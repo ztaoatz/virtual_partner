@@ -26,6 +26,8 @@ urlpatterns = [
     path("", wel.welcome),
     path("index/", wel.welcome),
     path("findstudents/", stu.findstudent),
-    path("chat/", ca.getchat),
+    path("chat/", ca.getchat),  # 原有的聊天API
+    path("enhanced-chat/", ca.enhanced_chat),  # 新的增强聊天API
+    path("chat-history/", ca.get_chat_history),  # 获取聊天历史
     path('appp/', include('users.urls')),
 ]

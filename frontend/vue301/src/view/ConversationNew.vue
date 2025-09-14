@@ -210,6 +210,11 @@ const showText = ref(true)
 const currentEmotion = ref('neutral')
 const partnerStatus = ref('准备就绪，随时为您服务')
 
+// 用户和会话管理
+const currentUserId = ref('')
+const currentSessionId = ref('')
+const isLoadingHistory = ref(false)
+
 // 情绪日记相关
 const showDiary = ref(false)
 const selectedDate = ref(new Date().toISOString().split('T')[0])
@@ -407,16 +412,24 @@ const handleSpeechResult = async (transcript) => {
   await sendToAIModel(transcript)
 }
 
-// 发送到后端API（遵循项目标准格式）
+// 发送到后端API（使用增强的聊天API）
 const sendToAIModel = async (userInput) => {
   try {
-    // 按照项目标准格式调用后端API
-    const response = await axios.post('http://127.0.0.1:8000/chat/', {
+    // 使用新的增强聊天API
+    const response = await axios.post('http://127.0.0.1:8000/enhanced-chat/', {
       "prompt": userInput,
-      "history": '',
-      "system": '你现在是由SocialAI开发的温暖智能助手灵犀，专门为用户提供贴心的对话交流服务。你的任务是以温暖、体贴的方式与用户进行自然对话，帮助用户解决问题，分享情感，提供有价值的建议和陪伴。'
+      "system": '你现在是由SocialAI开发的温暖智能助手灵犀，专门为用户提供贴心的对话交流服务。你的任务是以温暖、体贴的方式与用户进行自然对话，帮助用户解决问题，分享情感，提供有价值的建议和陪伴。',
+      "user_id": currentUserId.value,
+      "session_id": currentSessionId.value
     })
       if (response.data && response.data.result) {
+      // 更新会话信息
+      currentUserId.value = response.data.user_id
+      currentSessionId.value = response.data.session_id
+      
+      // 保存会话ID到localStorage
+      localStorage.setItem('virtual_partner_session_id', response.data.session_id)
+      
       // AI回复成功
       isAISpeaking.value = true
       currentEmotion.value = 'happy'
@@ -429,16 +442,17 @@ const sendToAIModel = async (userInput) => {
       }
       
       const aiMessage = {
-        id: Date.now() + 1,
+        id: response.data.message_id || Date.now() + 1,
         text: response.data.result,
         isUser: false,
-        timestamp: new Date()
+        timestamp: new Date(response.data.timestamp || new Date())
       }
       messages.push(aiMessage)
       
       // 使用语音合成播放AI回复
       speakText(response.data.result)
-        // 根据回复长度调整AI说话时间
+      
+      // 根据回复长度调整AI说话时间
       setTimeout(() => {
         isAISpeaking.value = false
         currentEmotion.value = 'neutral'
@@ -722,12 +736,56 @@ const formatTime = (timestamp) => {
   })
 }
 
-// 生命周期
-onMounted(() => {
-  // 初始化语音识别
-  initSpeechRecognition()
-  
-  // 初始化欢迎消息
+// 聊天历史管理方法
+const loadChatHistory = async () => {
+  try {
+    isLoadingHistory.value = true
+    
+    const response = await axios.get('http://127.0.0.1:8000/chat-history/', {
+      params: {
+        user_id: currentUserId.value,
+        session_id: currentSessionId.value
+      }
+    })
+    
+    if (response.data && response.data.success) {
+      // 更新用户和会话信息
+      currentUserId.value = response.data.user_id
+      currentSessionId.value = response.data.session_id
+      
+      // 清空当前消息并加载历史记录
+      messages.splice(0, messages.length)
+      
+      // 如果有历史记录，加载它们
+      if (response.data.messages && response.data.messages.length > 0) {
+        response.data.messages.forEach(msg => {
+          messages.push({
+            id: msg.id,
+            text: msg.text,
+            isUser: msg.isUser,
+            timestamp: new Date(msg.timestamp)
+          })
+        })
+        
+        partnerStatus.value = '欢迎回来！我们继续之前的对话吧'
+      } else {
+        // 如果没有历史记录，显示欢迎消息
+        addWelcomeMessages()
+      }
+    } else {
+      addWelcomeMessages()
+    }
+    
+  } catch (error) {
+    console.error('加载聊天历史失败:', error)
+    addWelcomeMessages()
+  } finally {
+    isLoadingHistory.value = false
+  }
+}
+
+const addWelcomeMessages = () => {
+  // 添加欢迎消息
   messages.push({
     id: 1,
     text: '你好！我是灵犀，您的AI伙伴。点击下方的麦克风按钮开始我们的语音对话吧！',
@@ -744,6 +802,51 @@ onMounted(() => {
       timestamp: new Date()
     })
   }
+}
+
+const initializeUserSession = () => {
+  // 从localStorage获取用户ID，如果没有则生成新的
+  let storedUserId = localStorage.getItem('virtual_partner_user_id')
+  
+  // 检查现有用户ID是否是有效的UUID格式
+  const isValidUUID = (str) => {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    return uuidRegex.test(str)
+  }
+  
+  if (!storedUserId || !isValidUUID(storedUserId)) {
+    // 生成标准UUID格式的用户ID
+    storedUserId = generateUUID()
+    localStorage.setItem('virtual_partner_user_id', storedUserId)
+    // 清除旧的会话ID，重新开始
+    localStorage.removeItem('virtual_partner_session_id')
+  }
+  
+  currentUserId.value = storedUserId
+  
+  // 会话ID将在第一次聊天时由后端生成
+  currentSessionId.value = localStorage.getItem('virtual_partner_session_id') || null
+}
+
+// 生成UUID的辅助函数
+const generateUUID = () => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0
+    const v = c == 'x' ? r : (r & 0x3 | 0x8)
+    return v.toString(16)
+  })
+}
+
+// 生命周期
+onMounted(async () => {
+  // 初始化用户会话
+  initializeUserSession()
+  
+  // 初始化语音识别
+  initSpeechRecognition()
+  
+  // 加载聊天历史记录
+  await loadChatHistory()
 })
 
 onUnmounted(() => {
