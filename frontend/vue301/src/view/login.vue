@@ -83,12 +83,18 @@ const onSubmit = async () => {
     const response = await axios.post('http://127.0.0.1:8000/appp/login/', {
       username: form.username,
       password: form.password,
-    });
-
-    // 检查响应结果
+    });    // 检查响应结果
     if (response.data.success) {
       sessionStorage.setItem("menuList", JSON.stringify(response.data.menuList));
-      sessionStorage.setItem("userInfo", JSON.stringify({ username: form.username }));
+      sessionStorage.setItem("userInfo", JSON.stringify({ 
+        username: form.username,
+        user_id: response.data.user_id,
+        django_user_id: response.data.django_user_id
+      }));
+      
+      // 保存用户ID到localStorage供聊天功能使用
+      localStorage.setItem('virtual_partner_user_id', response.data.user_id);
+      
       alert(response.data.message || "登录成功，欢迎回来");
       router.push('/welcome');
     } else {

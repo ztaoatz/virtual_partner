@@ -36,18 +36,20 @@ def get_chat_history(request):
             user = profile.user
         except UserProfile.DoesNotExist:
             # 如果不存在，创建新用户和资料
-            # 使用完整的UUID作为用户名来避免冲突
-            username = f'temp_user_{user_id}'
-            user = User.objects.create(
-                username=username,
-                email=f'{user_id[:8]}@temp.local'
+            user, created = User.objects.get_or_create(
+                username=f'temp_user_{user_id[:8]}',
+                defaults={
+                    'email': f'{user_id[:8]}@temp.local'
+                }
             )
             
             # 创建用户资料
-            profile = UserProfile.objects.create(
+            profile, _ = UserProfile.objects.get_or_create(
                 user=user,
-                nickname='访客用户',
-                external_user_id=user_id
+                defaults={
+                    'nickname': '访客用户',
+                    'external_user_id': user_id
+                }
             )
         
         # 获取活跃的聊天会话
@@ -170,18 +172,20 @@ def enhanced_chat(request):
             user = profile.user
         except UserProfile.DoesNotExist:
             # 如果不存在，创建新用户和资料
-            # 使用完整的UUID作为用户名来避免冲突
-            username = f'temp_user_{user_id}'
-            user = User.objects.create(
-                username=username,
-                email=f'{user_id[:8]}@temp.local'
+            user, created = User.objects.get_or_create(
+                username=f'temp_user_{user_id[:8]}',
+                defaults={
+                    'email': f'{user_id[:8]}@temp.local'
+                }
             )
             
             # 创建用户资料
-            profile = UserProfile.objects.create(
+            profile, _ = UserProfile.objects.get_or_create(
                 user=user,
-                nickname='访客用户',
-                external_user_id=user_id
+                defaults={
+                    'nickname': '访客用户',
+                    'external_user_id': user_id
+                }
             )
         
         # 获取或创建会话

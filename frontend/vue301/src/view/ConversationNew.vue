@@ -805,8 +805,19 @@ const addWelcomeMessages = () => {
 }
 
 const initializeUserSession = () => {
-  // 从localStorage获取用户ID，如果没有则生成新的
-  let storedUserId = localStorage.getItem('virtual_partner_user_id')
+  // 首先检查是否有已登录用户的信息
+  const userInfo = JSON.parse(sessionStorage.getItem('userInfo') || '{}')
+  let storedUserId = null
+  
+  // 优先使用已登录用户的ID
+  if (userInfo.user_id) {
+    storedUserId = userInfo.user_id
+    console.log('使用已登录用户ID:', storedUserId)
+  } else {
+    // 如果没有登录用户，从localStorage获取或生成临时用户ID
+    storedUserId = localStorage.getItem('virtual_partner_user_id')
+    console.log('使用临时用户ID:', storedUserId)
+  }
   
   // 检查现有用户ID是否是有效的UUID格式
   const isValidUUID = (str) => {
@@ -820,6 +831,7 @@ const initializeUserSession = () => {
     localStorage.setItem('virtual_partner_user_id', storedUserId)
     // 清除旧的会话ID，重新开始
     localStorage.removeItem('virtual_partner_session_id')
+    console.log('生成新的临时用户ID:', storedUserId)
   }
   
   currentUserId.value = storedUserId

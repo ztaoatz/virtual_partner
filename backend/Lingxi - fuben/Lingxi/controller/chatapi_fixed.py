@@ -69,35 +69,22 @@ def enhanced_chat(request):
             print(f"找到现有用户: {user.username} (Profile ID: {profile.id})")
         except UserProfile.DoesNotExist:
             # 如果不存在，创建新用户和资料
-            # 使用完整的UUID作为用户名来避免冲突
-            username = f'user_{user_id}'
-            try:
-                user = User.objects.create(
-                    username=username,
-                    email=f'{user_id[:8]}@temp.local'
-                )
-                
-                # 创建用户资料
-                profile = UserProfile.objects.create(
-                    user=user,
-                    nickname='访客用户',
-                    external_user_id=user_id
-                )
-                print(f"创建新用户: {user.username} (Profile ID: {profile.id})")
-            except Exception as e:
-                print(f"创建用户失败: {e}")
-                # 如果用户名已存在，使用完整UUID
-                username = f'user_{user_id}'
-                user = User.objects.create(
-                    username=username,
-                    email=f'{user_id[:8]}@temp.local'
-                )
-                profile = UserProfile.objects.create(
-                    user=user,
-                    nickname='访客用户',
-                    external_user_id=user_id
-                )
-                print(f"使用完整UUID创建用户: {user.username}")
+            user, created = User.objects.get_or_create(
+                username=f'user_{user_id[:8]}',  # 使用UUID前8位作为用户名
+                defaults={
+                    'email': f'{user_id[:8]}@temp.local'
+                }
+            )
+            
+            # 创建用户资料
+            profile, _ = UserProfile.objects.get_or_create(
+                user=user,
+                defaults={
+                    'nickname': '访客用户',
+                    'external_user_id': user_id
+                }
+            )
+            print(f"创建新用户: {user.username} (Profile ID: {profile.id})")
         
         print(f"使用用户: {user.username}, Profile ID: {profile.id}, External ID: {profile.external_user_id}")
         print(f"用户的会话数: {ChatSession.objects.filter(user=user).count()}")
@@ -107,13 +94,11 @@ def enhanced_chat(request):
         if session_id:
             try:
                 chat_session = ChatSession.objects.get(session_id=session_id, user=user)
-                print(f"找到现有会话: {chat_session.session_id}")
             except ChatSession.DoesNotExist:
                 chat_session = ChatSession.objects.create(
                     user=user,
                     title=f'对话 {datetime.now().strftime("%m-%d %H:%M")}'
                 )
-                print(f"创建新会话: {chat_session.session_id}")
         else:
             chat_session = ChatSession.objects.filter(user=user, is_active=True).first()
             if not chat_session:
@@ -121,7 +106,6 @@ def enhanced_chat(request):
                     user=user,
                     title=f'对话 {datetime.now().strftime("%m-%d %H:%M")}'
                 )
-                print(f"创建新会话: {chat_session.session_id}")
         
         # 保存用户消息
         user_msg = ChatMessage.objects.create(
@@ -130,7 +114,6 @@ def enhanced_chat(request):
             message_type='user',
             content=user_message
         )
-        print(f"保存用户消息: {user_msg.message_id}")
         
         # 构建历史对话上下文（最近5条）
         recent_messages = ChatMessage.objects.filter(
@@ -143,8 +126,6 @@ def enhanced_chat(request):
                 history.append({"role": "user", "content": msg.content})
             elif msg.message_type == 'ai':
                 history.append({"role": "assistant", "content": msg.content})
-        
-        print(f"历史消息上下文: {len(history)} 条")
         
         # 调用AI模型
         headers = {'Content-Type': 'application/json'}
@@ -173,7 +154,6 @@ def enhanced_chat(request):
             message_type='ai',
             content=ai_content
         )
-        print(f"保存AI回复: {ai_msg.message_id}")
         
         # 更新会话
         chat_session.updated_at = timezone.now()
@@ -247,9 +227,7 @@ def get_chat_history(request):
         if session_id:
             try:
                 chat_session = ChatSession.objects.get(session_id=session_id, user=user)
-                print(f"找到会话: {chat_session.session_id}")
             except ChatSession.DoesNotExist:
-                print(f"会话不存在: {session_id}")
                 return JsonResponse({
                     'success': True,
                     'messages': [],
@@ -259,7 +237,6 @@ def get_chat_history(request):
         else:
             chat_session = ChatSession.objects.filter(user=user, is_active=True).first()
             if not chat_session:
-                print("没有活跃会话")
                 return JsonResponse({
                     'success': True,
                     'messages': [],
@@ -271,8 +248,6 @@ def get_chat_history(request):
         messages = ChatMessage.objects.filter(
             session=chat_session
         ).order_by('-timestamp')[:20]
-        
-        print(f"找到 {messages.count()} 条消息")
         
         # 转换为前端格式
         message_list = []

@@ -96,9 +96,12 @@ const register = async () => {
     const response = await axios.post('http://127.0.0.1:8000/appp/register/', {
       phoneNumber: phoneNumber.value,
       password: password.value,
-    });
-
-    if (response.data.success) {
+    });    if (response.data.success) {
+      // 保存用户ID到localStorage
+      if (response.data.user_id) {
+        localStorage.setItem('virtual_partner_user_id', response.data.user_id);
+      }
+      
       alert("注册成功！欢迎加入灵犀一言大家庭");
       router.push("/login");
     } else {
