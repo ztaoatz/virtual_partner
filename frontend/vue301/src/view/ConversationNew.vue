@@ -740,18 +740,29 @@ const formatTime = (timestamp) => {
 const loadChatHistory = async () => {
   try {
     isLoadingHistory.value = true
+    partnerStatus.value = '正在加载聊天历史...'
+    
+    // 构建请求参数，仅传递用户ID，让后端决定加载哪个会话
+    const params = {
+      user_id: currentUserId.value
+    }
+    
+    // 如果有存储的会话ID，也传递给后端（可选）
+    if (currentSessionId.value) {
+      params.session_id = currentSessionId.value
+    }
     
     const response = await axios.get('http://127.0.0.1:8000/chat-history/', {
-      params: {
-        user_id: currentUserId.value,
-        session_id: currentSessionId.value
-      }
+      params: params
     })
     
     if (response.data && response.data.success) {
       // 更新用户和会话信息
       currentUserId.value = response.data.user_id
       currentSessionId.value = response.data.session_id
+      
+      // 保存会话ID到localStorage
+      localStorage.setItem('virtual_partner_session_id', response.data.session_id)
       
       // 清空当前消息并加载历史记录
       messages.splice(0, messages.length)
@@ -767,17 +778,27 @@ const loadChatHistory = async () => {
           })
         })
         
-        partnerStatus.value = '欢迎回来！我们继续之前的对话吧'
+        // 检查是否是已登录用户
+        const userInfo = JSON.parse(sessionStorage.getItem('userInfo') || '{}')
+        if (userInfo.user_id && userInfo.user_id === currentUserId.value) {
+          partnerStatus.value = `欢迎回来，${userInfo.username || '用户'}！我们继续之前的对话吧`
+        } else {
+          partnerStatus.value = '欢迎回来！我们继续之前的对话吧'
+        }
+        
+        console.log(`成功加载 ${response.data.messages.length} 条历史消息`)
       } else {
         // 如果没有历史记录，显示欢迎消息
         addWelcomeMessages()
       }
     } else {
+      console.log('后端返回无历史记录，显示欢迎消息')
       addWelcomeMessages()
     }
     
   } catch (error) {
     console.error('加载聊天历史失败:', error)
+    // 网络错误或其他错误时，仍显示欢迎消息
     addWelcomeMessages()
   } finally {
     isLoadingHistory.value = false
@@ -785,10 +806,24 @@ const loadChatHistory = async () => {
 }
 
 const addWelcomeMessages = () => {
+  // 检查是否是已登录用户
+  const userInfo = JSON.parse(sessionStorage.getItem('userInfo') || '{}')
+  let welcomeText = ''
+  
+  if (userInfo.user_id && userInfo.user_id === currentUserId.value) {
+    // 已登录用户的欢迎消息
+    welcomeText = `你好${userInfo.username ? '，' + userInfo.username : ''}！我是灵犀，您的AI伙伴。看起来这是我们的第一次对话，点击下方的麦克风按钮开始我们的语音交流吧！`
+    partnerStatus.value = `欢迎，${userInfo.username || '用户'}！准备开始我们的对话`
+  } else {
+    // 访客用户的欢迎消息
+    welcomeText = '你好！我是灵犀，您的AI伙伴。点击下方的麦克风按钮开始我们的语音对话吧！'
+    partnerStatus.value = '准备就绪，随时为您服务'
+  }
+  
   // 添加欢迎消息
   messages.push({
     id: 1,
-    text: '你好！我是灵犀，您的AI伙伴。点击下方的麦克风按钮开始我们的语音对话吧！',
+    text: welcomeText,
     isUser: false,
     timestamp: new Date()
   })
@@ -813,6 +848,15 @@ const initializeUserSession = () => {
   if (userInfo.user_id) {
     storedUserId = userInfo.user_id
     console.log('使用已登录用户ID:', storedUserId)
+    
+    // 检查localStorage中的用户ID是否与当前登录用户匹配
+    const localStorageUserId = localStorage.getItem('virtual_partner_user_id')
+    if (localStorageUserId !== storedUserId) {
+      // 如果不匹配，说明用户已切换，清除旧的会话数据
+      console.log('检测到用户切换，清除旧会话数据')
+      localStorage.setItem('virtual_partner_user_id', storedUserId)
+      localStorage.removeItem('virtual_partner_session_id')
+    }
   } else {
     // 如果没有登录用户，从localStorage获取或生成临时用户ID
     storedUserId = localStorage.getItem('virtual_partner_user_id')
@@ -836,8 +880,13 @@ const initializeUserSession = () => {
   
   currentUserId.value = storedUserId
   
-  // 会话ID将在第一次聊天时由后端生成
+  // 获取会话ID，如果用户已切换则为null
   currentSessionId.value = localStorage.getItem('virtual_partner_session_id') || null
+  
+  console.log('初始化用户会话:', {
+    userId: currentUserId.value,
+    sessionId: currentSessionId.value
+  })
 }
 
 // 生成UUID的辅助函数

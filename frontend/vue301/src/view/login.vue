@@ -95,6 +95,11 @@ const onSubmit = async () => {
       // 保存用户ID到localStorage供聊天功能使用
       localStorage.setItem('virtual_partner_user_id', response.data.user_id);
       
+      // 清除旧的会话数据，确保新用户不会继承之前用户的会话
+      localStorage.removeItem('virtual_partner_session_id');
+      
+      console.log('用户登录成功，清除旧会话数据:', response.data.user_id);
+      
       alert(response.data.message || "登录成功，欢迎回来");
       router.push('/welcome');
     } else {

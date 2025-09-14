@@ -49,26 +49,29 @@ def get_chat_history(request):
                 nickname='访客用户',
                 external_user_id=user_id
             )
-        
-        # 获取活跃的聊天会话
+          # 获取活跃的聊天会话
         if session_id:
             try:
                 chat_session = ChatSession.objects.get(session_id=session_id, user=user)
             except ChatSession.DoesNotExist:
-                chat_session = ChatSession.objects.create(
-                    user=user,
-                    title=f'对话 {datetime.now().strftime("%m-%d %H:%M")}'
-                )
+                # 如果指定的会话不存在，获取用户最新的会话
+                chat_session = ChatSession.objects.filter(user=user).order_by('-updated_at').first()
+                if not chat_session:
+                    chat_session = ChatSession.objects.create(
+                        user=user,
+                        title=f'对话 {datetime.now().strftime("%m-%d %H:%M")}'
+                    )
         else:
-            # 获取最近的活跃会话或创建新会话
-            chat_session = ChatSession.objects.filter(user=user, is_active=True).first()
+            # 没有指定会话ID时，获取用户最新的会话
+            chat_session = ChatSession.objects.filter(user=user).order_by('-updated_at').first()
             if not chat_session:
+                # 如果用户没有任何会话，创建新会话
                 chat_session = ChatSession.objects.create(
                     user=user,
                     title=f'对话 {datetime.now().strftime("%m-%d %H:%M")}'
                 )
         
-        # 获取最近20条消息
+        # 获取该会话的最近20条消息
         messages = ChatMessage.objects.filter(
             session=chat_session
         ).order_by('-timestamp')[:20]
