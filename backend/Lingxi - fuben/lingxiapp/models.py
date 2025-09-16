@@ -53,3 +53,22 @@ class UserPreference(models.Model):
     
     def __str__(self):
         return f"{self.user.username}的偏好设置"
+
+# 情绪日记模型
+class EmotionDiary(models.Model):
+    diary_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='emotion_diaries')
+    date = models.DateField()  # 日记对应的日期
+    content = models.TextField()  # AI生成的日记内容
+    emotions = models.TextField(blank=True, null=True)  # JSON格式的情绪分析结果
+    main_topic = models.CharField(max_length=50, blank=True, null=True)  # 主要话题
+    message_count = models.IntegerField(default=0)  # 该日期的消息数量
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ('user', 'date')  # 每个用户每天只能有一篇日记
+        ordering = ['-date']
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.date} 的情绪日记"

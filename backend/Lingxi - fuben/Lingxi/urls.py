@@ -20,6 +20,7 @@ from django.urls import path, include
 from .controller import welcomecontroller as wel
 from .controller import studentcontroller as stu
 from .controller import chatapi as ca
+from .controller import diary_generator as diary
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -29,5 +30,12 @@ urlpatterns = [
     path("chat/", ca.getchat),  # 原有的聊天API
     path("enhanced-chat/", ca.enhanced_chat),  # 新的增强聊天API
     path("chat-history/", ca.get_chat_history),  # 获取聊天历史
+    
+    # 情绪日记相关API
+    path("generate-diary/", diary.generate_emotion_diary),  # 生成情绪日记
+    path("get-diary/", diary.get_emotion_diary),  # 获取指定日期的日记
+    path("diary-dates/", diary.get_diary_dates),  # 获取有日记的日期列表
+    path("delete-diary/", diary.delete_emotion_diary),  # 删除指定日期的日记
+    
     path('appp/', include('users.urls')),
 ]

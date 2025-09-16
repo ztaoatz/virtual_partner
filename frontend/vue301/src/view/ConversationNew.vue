@@ -580,74 +580,164 @@ const closeDiary = () => {
 
 const loadDiaryForDate = async () => {
   try {
-    // 从本地存储加载日记数据
+    // 如果有用户ID，先尝试从后端加载日记
+    if (currentUserId.value) {
+      try {
+        const response = await axios.get('http://127.0.0.1:8000/get-diary/', {
+          params: {
+            user_id: currentUserId.value,
+            date: selectedDate.value
+          }
+        })
+        
+        if (response.data && response.data.success) {
+          const diary = response.data.diary
+          Object.assign(diaryData, {
+            content: diary.content,
+            emotions: diary.emotions,
+            messageCount: diary.message_count,
+            mainTopic: diary.main_topic,
+            date: diary.date
+          })
+          
+          // 保存到本地存储作为缓存
+          localStorage.setItem(`diary_${selectedDate.value}`, JSON.stringify(diaryData))
+          diaryDates.add(selectedDate.value)
+          return
+        }
+      } catch (error) {
+        console.log('后端没有该日期的日记记录')
+      }
+    }
+    
+    // 如果后端没有，尝试从本地存储加载
     const storedDiary = localStorage.getItem(`diary_${selectedDate.value}`)
     if (storedDiary) {
       const parsed = JSON.parse(storedDiary)
       Object.assign(diaryData, parsed)
-    } else {
-      // 清空数据
-      diaryData.content = ''
-      diaryData.emotions = []
-      diaryData.messageCount = 0
-      diaryData.mainTopic = ''
+      return
     }
+    
+    // 如果都没有，检查该日期是否有聊天记录
+    if (currentUserId.value) {
+      try {
+        const historyResponse = await axios.get('http://127.0.0.1:8000/chat-history/', {
+          params: { user_id: currentUserId.value }
+        })
+        
+        if (historyResponse.data?.success && historyResponse.data.messages) {
+          const targetDate = selectedDate.value
+          const messagesFromDate = historyResponse.data.messages.filter(msg => {
+            const msgDate = new Date(msg.timestamp).toISOString().split('T')[0]
+            return msgDate === targetDate
+          })
+          
+          if (messagesFromDate.length >= 2) {
+            // 有足够的消息记录，提示可以生成日记
+            diaryData.content = '该日期有聊天记录，点击"生成今日日记"按钮来创建AI情绪日记'
+            diaryData.emotions = []
+            diaryData.messageCount = Math.floor(messagesFromDate.length / 2)
+            diaryData.mainTopic = '待分析'
+            return
+          }
+        }
+      } catch (error) {
+        console.log('检查聊天记录失败:', error)
+      }
+    }
+      // 清空数据
+    diaryData.content = ''
+    diaryData.emotions = []
+    diaryData.messageCount = 0
+    diaryData.mainTopic = ''
+    
   } catch (error) {
     console.error('加载日记失败:', error)
+    // 清空数据
+    diaryData.content = ''
+    diaryData.emotions = []
+    diaryData.messageCount = 0
+    diaryData.mainTopic = ''
   }
 }
 
 const generateDiary = async () => {
-  if (messages.length === 0) {
-    alert('暂无对话内容，无法生成日记')
+  if (!currentUserId.value) {
+    alert('请先登录后再生成日记')
     return
   }
 
   try {
-    // 收集今日对话内容
-    const todayMessages = messages.filter(msg => {
-      const msgDate = new Date(msg.timestamp).toISOString().split('T')[0]
-      return msgDate === selectedDate.value
+    // 检查是否已有日记
+    let forceRegenerate = false
+    if (diaryData.content && diaryData.content.length > 50) {
+      // 询问是否重新生成
+      const userConfirm = confirm('该日期已有情绪日记，是否重新生成？\n重新生成将覆盖现有日记内容。')
+      if (!userConfirm) {
+        return
+      }
+      forceRegenerate = true
+    }
+    
+    // 显示加载状态
+    const loadingMessage = forceRegenerate ? 
+      '正在重新生成情绪日记...' : 
+      '正在使用AI分析您的聊天记录，生成情绪日记...'
+    partnerStatus.value = loadingMessage
+    
+    // 调用后端API生成日记
+    const response = await axios.post('http://127.0.0.1:8000/generate-diary/', {
+      user_id: currentUserId.value,
+      date: selectedDate.value,  // 格式: YYYY-MM-DD
+      force_regenerate: forceRegenerate
     })
 
-    if (todayMessages.length === 0) {
-      alert('该日期无对话记录')
-      return
+    if (response.data && response.data.success) {
+      const diary = response.data.diary
+      
+      // 更新日记数据
+      Object.assign(diaryData, {
+        content: diary.content,
+        emotions: diary.emotions.map(e => typeof e === 'string' ? e : e.emotion), // 兼容不同格式
+        messageCount: diary.message_count,
+        mainTopic: diary.main_topic,
+        date: diary.date
+      })
+      
+      // 保存到本地存储（可选）
+      localStorage.setItem(`diary_${selectedDate.value}`, JSON.stringify(diaryData))
+      
+      // 添加到日记日期列表
+      diaryDates.add(selectedDate.value)
+
+      const successMessage = diary.is_regenerated ? 
+        'AI情绪日记重新生成成功！' : 
+        'AI情绪日记生成成功！'
+      alert(successMessage)
+      partnerStatus.value = '日记生成完成！您可以查看今日的情绪分析'
+      
+    } else {
+      throw new Error(response.data?.error || '生成失败')
     }
-
-    // 分析对话内容
-    const userMessages = todayMessages.filter(msg => msg.isUser)
-    const aiMessages = todayMessages.filter(msg => !msg.isUser)
-    
-    // 提取情绪关键词
-    const emotionKeywords = extractEmotions(userMessages.map(msg => msg.text).join(' '))
-    
-    // 生成日记内容
-    const diaryContent = await generateDiaryContent(todayMessages)
-    
-    // 分析主要话题
-    const mainTopic = extractMainTopic(userMessages.map(msg => msg.text).join(' '))
-
-    // 保存日记数据
-    const diary = {
-      content: diaryContent,
-      emotions: emotionKeywords,
-      messageCount: Math.floor(todayMessages.length / 2),
-      mainTopic: mainTopic,
-      date: selectedDate.value
-    }
-
-    Object.assign(diaryData, diary)
-    
-    // 保存到本地存储
-    localStorage.setItem(`diary_${selectedDate.value}`, JSON.stringify(diary))
-    diaryDates.add(selectedDate.value)
-
-    alert('日记生成成功！')
     
   } catch (error) {
     console.error('生成日记失败:', error)
-    alert('生成日记失败，请重试')
+    
+    let errorMessage = '生成日记失败，请重试'
+    if (error.response?.status === 400) {
+      errorMessage = error.response.data?.error || '该日期没有聊天记录，无法生成日记'
+    } else if (error.response?.status === 500) {
+      const details = error.response.data?.details
+      if (details && details.includes('连接失败')) {
+        errorMessage = 'AI模型服务未启动，请确认Ollama服务正在运行'
+      } else {
+        errorMessage = 'AI模型服务异常，请稍后重试'
+      }
+    } else if (error.message.includes('Network Error')) {
+      errorMessage = '网络连接失败，请检查网络连接'
+    }
+      alert(errorMessage)
+    partnerStatus.value = '日记生成失败，请重试'
   }
 }
 
