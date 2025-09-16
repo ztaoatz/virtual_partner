@@ -874,45 +874,18 @@ const regenerateDiary = async () => {
   }
 
   try {
-    // 开始进度条
-    isGeneratingDiary.value = true
-    diaryProgress.value = 0
-    
-    // 模拟进度更新
-    const progressInterval = setInterval(() => {
-      if (diaryProgress.value < 90) {
-        diaryProgress.value += Math.random() * 12
-        if (diaryProgress.value < 30) {
-          diaryProgressMessage.value = '正在重新分析聊天记录...'
-        } else if (diaryProgress.value < 60) {
-          diaryProgressMessage.value = '正在更新情绪分析...'
-        } else if (diaryProgress.value < 90) {
-          diaryProgressMessage.value = '正在重新整理日记内容...'
-        }
-      }
-    }, 800)
-    
     // 显示加载状态
     partnerStatus.value = '正在重新生成情绪日记...'
-    diaryProgressMessage.value = '正在连接AI服务...'
-      
-    // 调用后端API强制重新生成日记
+    isProcessing.value = true
+      // 调用后端API强制重新生成日记
     const response = await axios.post('http://127.0.0.1:8000/generate-diary/', {
-      user_id: currentUserId.value,      
-      date: selectedDate.value,
+      user_id: currentUserId.value,      date: selectedDate.value,
       force_regenerate: true
     }, {
       timeout: 210000  // 3.5分钟超时，给后端重试留出更多时间
     })
 
-    // 清除进度条间隔
-    clearInterval(progressInterval)
-
     if (response.data && response.data.success) {
-      // 完成进度
-      diaryProgress.value = 100
-      diaryProgressMessage.value = '重新生成完成！'
-      
       const diary = response.data.diary
       
       // 更新日记数据
@@ -927,11 +900,8 @@ const regenerateDiary = async () => {
       // 保存到本地存储
       localStorage.setItem(`diary_${selectedDate.value}`, JSON.stringify(diaryData))
       
-      // 延迟显示成功消息
-      setTimeout(() => {
-        alert('AI情绪日记重新生成成功！')
-        partnerStatus.value = '日记重新生成完成！您可以查看更新后的情绪分析'
-      }, 500)
+      alert('AI情绪日记重新生成成功！')
+      partnerStatus.value = '日记重新生成完成！您可以查看更新后的情绪分析'
       
     } else {
       throw new Error(response.data?.error || '重新生成失败')
@@ -939,10 +909,6 @@ const regenerateDiary = async () => {
     
   } catch (error) {
     console.error('重新生成日记失败:', error)
-    
-    // 重置进度条
-    diaryProgress.value = 0
-    diaryProgressMessage.value = '重新生成失败'
     
     let errorMessage = '重新生成日记失败，请重试'
     if (error.response?.status === 400) {
@@ -961,12 +927,7 @@ const regenerateDiary = async () => {
     alert(errorMessage)
     partnerStatus.value = '日记重新生成失败，请重试'
   } finally {
-    // 确保重置状态
-    setTimeout(() => {
-      isGeneratingDiary.value = false
-      diaryProgress.value = 0
-      diaryProgressMessage.value = ''
-    }, 2000)
+    isProcessing.value = false
   }
 }
 
@@ -2310,30 +2271,5 @@ onUnmounted(() => {
   font-size: 14px;
   color: #8b7355;
   text-align: center;
-}
-
-/* 小型进度条样式 */
-.diary-progress-container.mini {
-  flex-direction: row;
-  gap: 8px;
-  align-items: center;
-}
-
-.circular-progress.mini {
-  width: 20px;
-  height: 20px;
-}
-
-.regenerate-text-mini {
-  font-size: 14px;
-  color: #ff7675;
-  font-weight: 500;
-}
-
-/* 按钮禁用状态 */
-.generate-btn:disabled,
-.regenerate-btn:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
 }
 </style>
