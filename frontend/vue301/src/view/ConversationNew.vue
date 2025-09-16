@@ -175,14 +175,37 @@
                 </div>
               </div>
             </div>
-            
-            <!-- 重新生成按钮 -->
+              <!-- 重新生成按钮 -->
             <div class="diary-actions">
-              <button @click="regenerateDiary" class="regenerate-btn" :disabled="isProcessing">
-                <svg viewBox="0 0 24 24" width="16" height="16" class="regenerate-icon">
-                  <path d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z" fill="currentColor"/>
-                </svg>
-                重新生成
+              <button @click="regenerateDiary" class="regenerate-btn" :disabled="isGeneratingDiary">
+                <!-- 重新生成进度条 -->
+                <div v-if="isGeneratingDiary" class="diary-progress-container mini">
+                  <div class="circular-progress mini">
+                    <svg width="20" height="20" viewBox="0 0 20 20" class="progress-ring mini">
+                      <circle cx="10" cy="10" r="8" 
+                              stroke="#e6e6e6" 
+                              stroke-width="2" 
+                              fill="none"/>
+                      <circle cx="10" cy="10" r="8" 
+                              stroke="#ff7675" 
+                              stroke-width="2" 
+                              fill="none"
+                              stroke-linecap="round"
+                              :stroke-dasharray="progressCircumferenceMini"
+                              :stroke-dashoffset="progressOffsetMini"
+                              class="progress-circle"/>
+                    </svg>
+                  </div>
+                  <span class="regenerate-text-mini">重新生成中...</span>
+                </div>
+                
+                <!-- 普通按钮 -->
+                <template v-if="!isGeneratingDiary">
+                  <svg viewBox="0 0 24 24" width="16" height="16" class="regenerate-icon">
+                    <path d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z" fill="currentColor"/>
+                  </svg>
+                  重新生成
+                </template>
               </button>
             </div>
           </div>
@@ -192,7 +215,35 @@
             <div class="empty-icon">📝</div>
             <p>该日期暂无情绪日记</p>
             <button @click="generateDiary" class="generate-btn" :disabled="messages.length === 0">
-              生成今日日记
+              <!-- 日记生成进度条 -->
+              <div v-if="isGeneratingDiary" class="diary-progress-container">
+                <div class="circular-progress">
+                  <svg width="40" height="40" viewBox="0 0 40 40" class="progress-ring">
+                    <circle cx="20" cy="20" r="16" 
+                            stroke="#e6e6e6" 
+                            stroke-width="4" 
+                            fill="none"/>
+                    <circle cx="20" cy="20" r="16" 
+                            stroke="#d4c5a9" 
+                            stroke-width="4" 
+                            fill="none"
+                            stroke-linecap="round"
+                            :stroke-dasharray="progressCircumference"
+                            :stroke-dashoffset="progressOffset"
+                            class="progress-circle"/>
+                  </svg>
+                  <div class="progress-text">{{ Math.round(diaryProgress) }}%</div>
+                </div>
+                <div class="progress-message">{{ diaryProgressMessage }}</div>
+              </div>
+              
+              <!-- 普通按钮文本 -->
+              <span v-if="!isGeneratingDiary">
+                <svg viewBox="0 0 24 24" width="16" height="16" class="diary-icon">
+                  <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" fill="currentColor"/>
+                </svg>
+                生成今日日记
+              </span>
             </button>
           </div>
         </div>
@@ -227,6 +278,23 @@ const isLoadingHistory = ref(false)
 // 情绪日记相关
 const showDiary = ref(false)
 const selectedDate = ref(new Date().toISOString().split('T')[0])
+const isGeneratingDiary = ref(false)
+const diaryProgress = ref(0)
+const diaryProgressMessage = ref('')
+
+// 进度条计算属性
+const progressCircumference = computed(() => 2 * Math.PI * 16) // 半径16的圆周长
+const progressOffset = computed(() => {
+  const progress = diaryProgress.value / 100
+  return progressCircumference.value * (1 - progress)
+})
+
+const progressCircumferenceMini = computed(() => 2 * Math.PI * 8) // 小进度条半径8
+const progressOffsetMini = computed(() => {
+  const progress = diaryProgress.value / 100
+  return progressCircumferenceMini.value * (1 - progress)
+})
+
 const diaryData = reactive({
   content: '',
   emotions: [],
@@ -688,20 +756,48 @@ const generateDiary = async () => {
       forceRegenerate = true
     }
     
+    // 开始进度条
+    isGeneratingDiary.value = true
+    diaryProgress.value = 0
+    
+    // 模拟进度更新
+    const progressInterval = setInterval(() => {
+      if (diaryProgress.value < 90) {
+        diaryProgress.value += Math.random() * 10
+        if (diaryProgress.value < 30) {
+          diaryProgressMessage.value = '正在分析聊天记录...'
+        } else if (diaryProgress.value < 60) {
+          diaryProgressMessage.value = '正在生成情绪分析...'
+        } else if (diaryProgress.value < 90) {
+          diaryProgressMessage.value = '正在整理日记内容...'
+        }
+      }
+    }, 1000)
+    
     // 显示加载状态
     const loadingMessage = forceRegenerate ? 
       '正在重新生成情绪日记...' : 
       '正在使用AI分析您的聊天记录，生成情绪日记...'
     partnerStatus.value = loadingMessage
-      // 调用后端API生成日记
+    diaryProgressMessage.value = '正在连接AI服务...'
+      
+    // 调用后端API生成日记
     const response = await axios.post('http://127.0.0.1:8000/generate-diary/', {
-      user_id: currentUserId.value,      date: selectedDate.value,  // 格式: YYYY-MM-DD
+      user_id: currentUserId.value,      
+      date: selectedDate.value,  // 格式: YYYY-MM-DD
       force_regenerate: forceRegenerate
     }, {
       timeout: 210000  // 3.5分钟超时，给后端重试留出更多时间
     })
 
+    // 清除进度条间隔
+    clearInterval(progressInterval)
+    
     if (response.data && response.data.success) {
+      // 完成进度
+      diaryProgress.value = 100
+      diaryProgressMessage.value = '生成完成！'
+      
       const diary = response.data.diary
       
       // 更新日记数据
@@ -722,8 +818,12 @@ const generateDiary = async () => {
       const successMessage = diary.is_regenerated ? 
         'AI情绪日记重新生成成功！' : 
         'AI情绪日记生成成功！'
-      alert(successMessage)
-      partnerStatus.value = '日记生成完成！您可以查看今日的情绪分析'
+      
+      // 延迟显示成功消息
+      setTimeout(() => {
+        alert(successMessage)
+        partnerStatus.value = '日记生成完成！您可以查看今日的情绪分析'
+      }, 500)
       
     } else {
       throw new Error(response.data?.error || '生成失败')
@@ -731,6 +831,10 @@ const generateDiary = async () => {
     
   } catch (error) {
     console.error('生成日记失败:', error)
+    
+    // 重置进度条
+    diaryProgress.value = 0
+    diaryProgressMessage.value = '生成失败'
     
     let errorMessage = '生成日记失败，请重试'
     if (error.response?.status === 400) {
@@ -747,10 +851,16 @@ const generateDiary = async () => {
     }
       alert(errorMessage)
     partnerStatus.value = '日记生成失败，请重试'
+  } finally {
+    // 确保重置状态
+    setTimeout(() => {
+      isGeneratingDiary.value = false
+      diaryProgress.value = 0
+      diaryProgressMessage.value = ''
+    }, 2000)
   }
 }
 
-// 重新生成日记方法
 const regenerateDiary = async () => {
   if (!currentUserId.value) {
     alert('请先登录后再重新生成日记')
@@ -764,18 +874,45 @@ const regenerateDiary = async () => {
   }
 
   try {
+    // 开始进度条
+    isGeneratingDiary.value = true
+    diaryProgress.value = 0
+    
+    // 模拟进度更新
+    const progressInterval = setInterval(() => {
+      if (diaryProgress.value < 90) {
+        diaryProgress.value += Math.random() * 12
+        if (diaryProgress.value < 30) {
+          diaryProgressMessage.value = '正在重新分析聊天记录...'
+        } else if (diaryProgress.value < 60) {
+          diaryProgressMessage.value = '正在更新情绪分析...'
+        } else if (diaryProgress.value < 90) {
+          diaryProgressMessage.value = '正在重新整理日记内容...'
+        }
+      }
+    }, 800)
+    
     // 显示加载状态
     partnerStatus.value = '正在重新生成情绪日记...'
-    isProcessing.value = true
-      // 调用后端API强制重新生成日记
+    diaryProgressMessage.value = '正在连接AI服务...'
+      
+    // 调用后端API强制重新生成日记
     const response = await axios.post('http://127.0.0.1:8000/generate-diary/', {
-      user_id: currentUserId.value,      date: selectedDate.value,
+      user_id: currentUserId.value,      
+      date: selectedDate.value,
       force_regenerate: true
     }, {
       timeout: 210000  // 3.5分钟超时，给后端重试留出更多时间
     })
 
+    // 清除进度条间隔
+    clearInterval(progressInterval)
+
     if (response.data && response.data.success) {
+      // 完成进度
+      diaryProgress.value = 100
+      diaryProgressMessage.value = '重新生成完成！'
+      
       const diary = response.data.diary
       
       // 更新日记数据
@@ -790,8 +927,11 @@ const regenerateDiary = async () => {
       // 保存到本地存储
       localStorage.setItem(`diary_${selectedDate.value}`, JSON.stringify(diaryData))
       
-      alert('AI情绪日记重新生成成功！')
-      partnerStatus.value = '日记重新生成完成！您可以查看更新后的情绪分析'
+      // 延迟显示成功消息
+      setTimeout(() => {
+        alert('AI情绪日记重新生成成功！')
+        partnerStatus.value = '日记重新生成完成！您可以查看更新后的情绪分析'
+      }, 500)
       
     } else {
       throw new Error(response.data?.error || '重新生成失败')
@@ -799,6 +939,10 @@ const regenerateDiary = async () => {
     
   } catch (error) {
     console.error('重新生成日记失败:', error)
+    
+    // 重置进度条
+    diaryProgress.value = 0
+    diaryProgressMessage.value = '重新生成失败'
     
     let errorMessage = '重新生成日记失败，请重试'
     if (error.response?.status === 400) {
@@ -817,7 +961,12 @@ const regenerateDiary = async () => {
     alert(errorMessage)
     partnerStatus.value = '日记重新生成失败，请重试'
   } finally {
-    isProcessing.value = false
+    // 确保重置状态
+    setTimeout(() => {
+      isGeneratingDiary.value = false
+      diaryProgress.value = 0
+      diaryProgressMessage.value = ''
+    }, 2000)
   }
 }
 
@@ -2121,5 +2270,70 @@ onUnmounted(() => {
     grid-template-columns: 1fr;
     gap: 10px;
   }
+}
+
+/* 日记生成进度条样式 */
+.diary-progress-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.circular-progress {
+  position: relative;
+  width: 40px;
+  height: 40px;
+}
+
+.progress-ring {
+  transform: rotate(-90deg);
+}
+
+.progress-circle {
+  transition: stroke-dashoffset 0.35s;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}
+
+.progress-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 12px;
+  font-weight: 600;
+  color: #8b7355;
+}
+
+.progress-message {
+  font-size: 14px;
+  color: #8b7355;
+  text-align: center;
+}
+
+/* 小型进度条样式 */
+.diary-progress-container.mini {
+  flex-direction: row;
+  gap: 8px;
+  align-items: center;
+}
+
+.circular-progress.mini {
+  width: 20px;
+  height: 20px;
+}
+
+.regenerate-text-mini {
+  font-size: 14px;
+  color: #ff7675;
+  font-weight: 500;
+}
+
+/* 按钮禁用状态 */
+.generate-btn:disabled,
+.regenerate-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 </style>

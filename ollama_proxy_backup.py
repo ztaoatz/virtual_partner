@@ -1,6 +1,8 @@
 from flask import Flask, request, jsonify
 import requests
 import json
+import time
+import re
 
 app = Flask(__name__)
 
@@ -19,7 +21,9 @@ def chat():
         user_text = data.get('text', '')
         
         # 组合系统提示和用户输入
-        full_prompt = f"System: {system_prompt}\n\nUser: {user_text}\n\nAssistant:"        # 发送请求给Ollama
+        full_prompt = f"System: {system_prompt}\n\nUser: {user_text}\n\nAssistant:"
+        
+        # 发送请求给Ollama
         ollama_request = {
             "model": "qwen",  # 聊天功能使用qwen2.5:3b模型
             "prompt": full_prompt,
@@ -58,7 +62,7 @@ def chat():
 
 @app.route('/generate-diary/', methods=['POST'])
 def generate_diary():
-    """生成情绪日记"""
+    """生成情绪日记 - 优化版本"""
     try:
         # 接收聊天记录数据
         data = request.json
@@ -79,7 +83,8 @@ def generate_diary():
             conversations.append(f"{role}: {content}")
         
         chat_summary = "\n".join(conversations)
-          # 构建专门用于情绪日记的提示词
+        
+        # 构建专门用于情绪日记的提示词 - 优化版本
         diary_prompt = f"""作为专业心理健康助手，请为用户生成情绪日记。
 
 用户: {user_name}
@@ -102,7 +107,8 @@ def generate_diary():
 - 内容积极正面
 
 情绪日记:"""
-          # 发送请求给Ollama
+        
+        # 发送请求给Ollama - 优化版本
         ollama_request = {
             "model": "qwen3:4b",
             "prompt": diary_prompt,
@@ -115,34 +121,84 @@ def generate_diary():
             }
         }
         print(f"发送给Ollama生成日记: {ollama_request}")
-          # 调用Ollama API
-        response = requests.post(
-            OLLAMA_URL, 
-            json=ollama_request,
-            timeout=120  # 增加到2分钟，给AI模型更多处理时间
-        )
         
-        if response.status_code == 200:
-            result = response.json()
-            raw_diary_content = result.get('response', '')
-            
-            # 清理AI思考过程标签
-            diary_content = clean_thinking_tags(raw_diary_content)
-            
-            # 简单的情绪分析
-            emotions = analyze_emotions(chat_summary)
-            main_topic = extract_main_topic(chat_summary)
-            
-            return jsonify({
-                "success": True,
-                "diary_content": diary_content,
-                "emotions": emotions,
-                "main_topic": main_topic,
-                "message_count": len(chat_history)
-            })
-        else:
-            print(f"Ollama返回错误: {response.status_code}, {response.text}")
-            return jsonify({"error": "日记生成失败"}), 500
+        # 添加重试机制
+        max_retries = 2
+        retry_count = 0
+        
+        while retry_count <= max_retries:
+            try:
+                print(f"尝试生成日记 (第 {retry_count + 1} 次)")
+                
+                # 调用Ollama API
+                response = requests.post(
+                    OLLAMA_URL, 
+                    json=ollama_request,
+                    timeout=120  # 2分钟超时
+                )
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    raw_diary_content = result.get('response', '')
+                    
+                    # 检查生成内容是否有效
+                    if raw_diary_content and len(raw_diary_content.strip()) > 50:
+                        # 清理AI思考过程标签
+                        diary_content = clean_thinking_tags(raw_diary_content)
+                        
+                        # 验证清理后的内容长度
+                        if len(diary_content.strip()) < 30:
+                            print(f"清理后内容过短，重试 ({retry_count + 1}/{max_retries + 1})")
+                            retry_count += 1
+                            continue
+                        
+                        # 简单的情绪分析
+                        emotions = analyze_emotions(chat_summary)
+                        main_topic = extract_main_topic(chat_summary)
+                        
+                        print(f"日记生成成功，长度: {len(diary_content)} 字符")
+                        return jsonify({
+                            "success": True,
+                            "diary_content": diary_content,
+                            "emotions": emotions,
+                            "main_topic": main_topic,
+                            "message_count": len(chat_history)
+                        })
+                    else:
+                        print(f"生成内容过短或为空，尝试重试 ({retry_count + 1}/{max_retries + 1})")
+                        retry_count += 1
+                        if retry_count <= max_retries:
+                            time.sleep(1)  # 短暂等待后重试
+                        continue
+                else:
+                    print(f"Ollama返回错误: {response.status_code}, {response.text}")
+                    if retry_count < max_retries:
+                        retry_count += 1
+                        print(f"HTTP错误，重试第 {retry_count} 次")
+                        time.sleep(2)
+                        continue
+                    else:
+                        return jsonify({"error": "AI模型服务异常"}), 500
+                        
+            except requests.exceptions.Timeout:
+                retry_count += 1
+                if retry_count <= max_retries:
+                    print(f"请求超时，重试第 {retry_count} 次")
+                    time.sleep(2)
+                    continue
+                else:
+                    return jsonify({"error": "请求超时，AI模型响应时间过长"}), 500
+            except Exception as e:
+                print(f"请求异常: {str(e)}")
+                retry_count += 1
+                if retry_count <= max_retries:
+                    time.sleep(2)
+                    continue
+                else:
+                    return jsonify({"error": f"日记生成异常: {str(e)}"}), 500
+        
+        # 所有重试都失败
+        return jsonify({"error": "日记生成失败，请稍后重试"}), 500
             
     except Exception as e:
         print(f"日记生成错误: {str(e)}")
@@ -204,39 +260,58 @@ def extract_main_topic(text):
         return '日常交流'
 
 def clean_thinking_tags(text):
-    """清理AI生成内容中的思考过程标签"""
-    import re
-    
+    """清理AI生成内容中的思考过程标签 - 增强版本"""
     # 移除 <think>...</think> 标签及其内容
     # 使用非贪婪匹配，支持多行内容
-    cleaned_text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
+    cleaned_text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL | re.IGNORECASE)
     
     # 移除可能的单独的 <think> 或 </think> 标签
-    cleaned_text = re.sub(r'</?think>', '', cleaned_text)
+    cleaned_text = re.sub(r'</?think>', '', cleaned_text, flags=re.IGNORECASE)
+    
+    # 移除其他常见的AI思考标签
+    cleaned_text = re.sub(r'<thinking>.*?</thinking>', '', cleaned_text, flags=re.DOTALL | re.IGNORECASE)
+    cleaned_text = re.sub(r'</?thinking>', '', cleaned_text, flags=re.IGNORECASE)
     
     # 清理多余的空行和首尾空白
-    cleaned_text = re.sub(r'\n\s*\n\s*\n', '\n\n', cleaned_text)  # 多个空行合并为两个
+    cleaned_text = re.sub(r'\n\s*\n\s*\n+', '\n\n', cleaned_text)  # 多个空行合并为两个
     cleaned_text = cleaned_text.strip()
     
     return cleaned_text
 
 @app.route('/health', methods=['GET'])
 def health():
-    """健康检查接口"""
+    """健康检查接口 - 增强版本"""
     try:
         # 测试Ollama连接
         test_response = requests.get("http://localhost:11434/api/tags", timeout=5)
         if test_response.status_code == 200:
-            return jsonify({"status": "healthy", "ollama": "connected"})
+            models = test_response.json().get('models', [])
+            available_models = [model.get('name', '') for model in models]
+            return jsonify({
+                "status": "healthy", 
+                "ollama": "connected",
+                "available_models": available_models,
+                "timestamp": time.time()
+            })
         else:
-            return jsonify({"status": "unhealthy", "ollama": "disconnected"}), 500
-    except:
-        return jsonify({"status": "unhealthy", "ollama": "disconnected"}), 500
+            return jsonify({
+                "status": "unhealthy", 
+                "ollama": "disconnected",
+                "error": f"HTTP {test_response.status_code}"
+            }), 500
+    except Exception as e:
+        return jsonify({
+            "status": "unhealthy", 
+            "ollama": "disconnected",
+            "error": str(e)
+        }), 500
 
 if __name__ == '__main__':
-    print("🚀 启动Ollama代理服务...")
+    print("🚀 启动Ollama代理服务 (优化版本)...")
     print("📍 监听地址: http://localhost:25674")
     print("🔗 Ollama地址: http://localhost:11434")
     print("💡 健康检查: http://localhost:25674/health")
+    print("🔄 重试机制: 最多3次尝试")
+    print("⏱️  超时设置: 聊天60s，日记120s")
     
     app.run(host='localhost', port=25674, debug=True)
