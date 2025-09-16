@@ -693,12 +693,12 @@ const generateDiary = async () => {
       '正在重新生成情绪日记...' : 
       '正在使用AI分析您的聊天记录，生成情绪日记...'
     partnerStatus.value = loadingMessage
-    
-    // 调用后端API生成日记
+      // 调用后端API生成日记
     const response = await axios.post('http://127.0.0.1:8000/generate-diary/', {
-      user_id: currentUserId.value,
-      date: selectedDate.value,  // 格式: YYYY-MM-DD
+      user_id: currentUserId.value,      date: selectedDate.value,  // 格式: YYYY-MM-DD
       force_regenerate: forceRegenerate
+    }, {
+      timeout: 210000  // 3.5分钟超时，给后端重试留出更多时间
     })
 
     if (response.data && response.data.success) {
@@ -767,12 +767,12 @@ const regenerateDiary = async () => {
     // 显示加载状态
     partnerStatus.value = '正在重新生成情绪日记...'
     isProcessing.value = true
-    
-    // 调用后端API强制重新生成日记
+      // 调用后端API强制重新生成日记
     const response = await axios.post('http://127.0.0.1:8000/generate-diary/', {
-      user_id: currentUserId.value,
-      date: selectedDate.value,
+      user_id: currentUserId.value,      date: selectedDate.value,
       force_regenerate: true
+    }, {
+      timeout: 210000  // 3.5分钟超时，给后端重试留出更多时间
     })
 
     if (response.data && response.data.success) {

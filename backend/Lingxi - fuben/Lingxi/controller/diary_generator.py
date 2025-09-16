@@ -97,7 +97,7 @@ def generate_emotion_diary(request):
             ollama_response = requests.post(
                 'http://localhost:25674/generate-diary/',
                 json=ollama_data,
-                timeout=120
+                timeout=180  # 3分钟超时，与前端保持一致
             )
             
             if ollama_response.status_code != 200:
