@@ -162,8 +162,7 @@
               <h4>对话日记</h4>
               <p>{{ diaryData.content }}</p>
             </div>
-            
-            <div class="conversation-stats">
+              <div class="conversation-stats">
               <h4>对话统计</h4>
               <div class="stats-grid">
                 <div class="stat-item">
@@ -175,6 +174,16 @@
                   <span class="stat-value">{{ diaryData.mainTopic }}</span>
                 </div>
               </div>
+            </div>
+            
+            <!-- 重新生成按钮 -->
+            <div class="diary-actions">
+              <button @click="regenerateDiary" class="regenerate-btn" :disabled="isProcessing">
+                <svg viewBox="0 0 24 24" width="16" height="16" class="regenerate-icon">
+                  <path d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z" fill="currentColor"/>
+                </svg>
+                重新生成
+              </button>
             </div>
           </div>
           
@@ -738,6 +747,77 @@ const generateDiary = async () => {
     }
       alert(errorMessage)
     partnerStatus.value = '日记生成失败，请重试'
+  }
+}
+
+// 重新生成日记方法
+const regenerateDiary = async () => {
+  if (!currentUserId.value) {
+    alert('请先登录后再重新生成日记')
+    return
+  }
+
+  // 确认重新生成
+  const userConfirm = confirm('确定要重新生成情绪日记吗？\n重新生成将使用最新的聊天记录覆盖现有日记内容。')
+  if (!userConfirm) {
+    return
+  }
+
+  try {
+    // 显示加载状态
+    partnerStatus.value = '正在重新生成情绪日记...'
+    isProcessing.value = true
+    
+    // 调用后端API强制重新生成日记
+    const response = await axios.post('http://127.0.0.1:8000/generate-diary/', {
+      user_id: currentUserId.value,
+      date: selectedDate.value,
+      force_regenerate: true
+    })
+
+    if (response.data && response.data.success) {
+      const diary = response.data.diary
+      
+      // 更新日记数据
+      Object.assign(diaryData, {
+        content: diary.content,
+        emotions: diary.emotions.map(e => typeof e === 'string' ? e : e.emotion),
+        messageCount: diary.message_count,
+        mainTopic: diary.main_topic,
+        date: diary.date
+      })
+      
+      // 保存到本地存储
+      localStorage.setItem(`diary_${selectedDate.value}`, JSON.stringify(diaryData))
+      
+      alert('AI情绪日记重新生成成功！')
+      partnerStatus.value = '日记重新生成完成！您可以查看更新后的情绪分析'
+      
+    } else {
+      throw new Error(response.data?.error || '重新生成失败')
+    }
+    
+  } catch (error) {
+    console.error('重新生成日记失败:', error)
+    
+    let errorMessage = '重新生成日记失败，请重试'
+    if (error.response?.status === 400) {
+      errorMessage = error.response.data?.error || '该日期没有聊天记录，无法重新生成日记'
+    } else if (error.response?.status === 500) {
+      const details = error.response.data?.details
+      if (details && details.includes('连接失败')) {
+        errorMessage = 'AI模型服务未启动，请确认Ollama服务正在运行'
+      } else {
+        errorMessage = 'AI模型服务异常，请稍后重试'
+      }
+    } else if (error.message.includes('Network Error')) {
+      errorMessage = '网络连接失败，请检查网络连接'
+    }
+    
+    alert(errorMessage)
+    partnerStatus.value = '日记重新生成失败，请重试'
+  } finally {
+    isProcessing.value = false
   }
 }
 
@@ -1967,6 +2047,52 @@ onUnmounted(() => {
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;
+}
+
+/* 重新生成按钮样式 */
+.diary-actions {
+  margin-top: 25px;
+  text-align: center;
+  padding-top: 20px;
+  border-top: 1px solid rgba(212, 197, 169, 0.2);
+}
+
+.regenerate-btn {
+  background: linear-gradient(135deg, #e8a87c, #d4956d);
+  color: white;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 25px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(232, 168, 124, 0.3);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: 0.5px;
+}
+
+.regenerate-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(232, 168, 124, 0.4);
+  background: linear-gradient(135deg, #d4956d, #c4885c);
+}
+
+.regenerate-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.regenerate-icon {
+  flex-shrink: 0;
+  transition: transform 0.3s ease;
+}
+
+.regenerate-btn:hover:not(:disabled) .regenerate-icon {
+  transform: rotate(360deg);
 }
 
 /* 响应式适配 */
