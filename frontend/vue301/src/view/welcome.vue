@@ -16,9 +16,9 @@
         <h1 class="main-title">请选择您想解决的问题</h1>
         <p class="subtitle">温暖的AI助手为您提供贴心的交流建议</p>
       </div>
-      
-      <div class="buttons-grid">
-        <button class="scenario-button toast-btn" @click="handleClick('敬酒', 'conversation')">
+        <div class="buttons-grid">
+        <!-- 敬酒模块暂时隐藏 -->
+        <button class="scenario-button toast-btn hidden-module" @click="handleClick('敬酒', 'conversation')" style="display: none;">
           <div class="btn-icon">🥂</div>
           <div class="btn-text">
             <span class="btn-title">敬酒</span>
