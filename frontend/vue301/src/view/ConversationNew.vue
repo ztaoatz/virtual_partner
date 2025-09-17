@@ -87,20 +87,7 @@
             <!-- 处理中的加载动画 -->
           <div class="processing-spinner" v-if="isProcessing">
             <div class="spinner-ring"></div>
-          </div>
-        </button>
-        
-        <!-- 停止语音按钮 -->
-        <button 
-          v-if="isAISpeaking" 
-          @click="stopAISpeech"
-          class="stop-speech-button"
-          title="停止语音播放"
-        >
-          <svg viewBox="0 0 24 24" width="24" height="24">
-            <path d="M6,6H18V18H6V6Z" fill="currentColor"/>
-          </svg>
-        </button>
+          </div>        </button>
           
           <!-- 录音状态提示 -->
         <div class="recording-hint" v-if="isRecording">
@@ -2336,44 +2323,6 @@ onUnmounted(() => {
     opacity: 0.5;
     transform: scale(1.2);
   }
-}
-
-/* 停止语音按钮样式 */
-.stop-speech-button {
-  position: absolute;
-  top: -10px;
-  right: -10px;
-  width: 40px;
-  height: 40px;
-  border: none;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #ff6b6b, #ee5a52);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
-  cursor: pointer;
-  transition: all 0.3s ease;
-  z-index: 10;
-}
-
-.stop-speech-button:hover {
-  background: linear-gradient(135deg, #ee5a52, #d63447);
-  box-shadow: 0 6px 20px rgba(255, 107, 107, 0.5);
-  transform: scale(1.05);
-}
-
-.stop-speech-button:active {
-  transform: scale(0.95);
-}
-
-.stop-speech-button svg {
-  transition: transform 0.2s ease;
-}
-
-.stop-speech-button:hover svg {
-  transform: scale(1.1);
 }
 
 /* 最小化控制按钮 */
