@@ -342,14 +342,18 @@ def get_emotion_trend(request):
             profile = UserProfile.objects.get(external_user_id=user_id)
             user = profile.user
         except UserProfile.DoesNotExist:
-            return JsonResponse({'error': '用户不存在'}, status=404)
+            # 更友好的错误处理：区分未登录用户和不存在的用户
+            return JsonResponse({
+                'error': '用户认证失败', 
+                'message': '请先登录后再查看趋势图',
+                'code': 'USER_NOT_AUTHENTICATED'
+            }, status=401)
         
         # 获取用户最近指定天数的日记，按日期排序
         diaries = EmotionDiary.objects.filter(
             user=user
         ).order_by('-date')[:days]
-        
-        # 构建趋势数据
+          # 构建趋势数据
         trend_data = []
         for diary in reversed(diaries):  # 反转以获得时间正序
             trend_data.append({
@@ -358,6 +362,15 @@ def get_emotion_trend(request):
                 'main_emotion': diary.main_topic or '日常',
                 'message_count': diary.message_count,
                 'emotions': json.loads(diary.emotions) if diary.emotions else []
+            })
+        
+        # 如果没有日记数据，返回友好提示
+        if not trend_data:
+            return JsonResponse({
+                'success': True,
+                'trend_data': [],
+                'total_days': 0,
+                'message': '暂无情绪日记数据，请先生成一些日记后再查看趋势图'
             })
         
         return JsonResponse({

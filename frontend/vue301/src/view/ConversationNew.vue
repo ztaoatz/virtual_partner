@@ -449,8 +449,17 @@ const getScoreColor = (score) => {
 
 // 显示情绪趋势图
 const showEmotionTrend = async () => {
+  // 首先检查用户登录状态
+  const userInfo = JSON.parse(sessionStorage.getItem('userInfo') || '{}')
+  
   if (!currentUserId.value) {
     alert('请先登录后查看趋势图')
+    return
+  }
+  
+  // 如果是临时用户ID（未登录），提示登录
+  if (!userInfo.user_id || userInfo.user_id !== currentUserId.value) {
+    alert('请先登录账户后再查看情绪趋势图\n游客模式下无法查看历史趋势数据')
     return
   }
 
@@ -474,25 +483,33 @@ const showEmotionTrend = async () => {
       trendData.value = response.data.trend_data || []
       console.log('获取到趋势数据:', trendData.value)
       
+      // 如果没有数据，显示友好提示
+      if (trendData.value.length === 0) {
+        alert(response.data.message || '暂无情绪日记数据，请先生成一些日记后再查看趋势图')
+        showTrendChart.value = false
+        return
+      }
+      
       // 等待下一个tick确保DOM已更新
       await nextTick()
       
       // 绘制趋势图
-      if (trendData.value.length > 0) {
-        setTimeout(() => {
-          drawTrendChart()
-        }, 100)
-      }
+      setTimeout(() => {
+        drawTrendChart()
+      }, 100)
     } else {
       console.error('获取趋势数据失败:', response.data)
       trendData.value = []
+      alert('获取趋势数据失败，请稍后重试')
     }
   } catch (error) {
     console.error('加载趋势数据失败:', error)
     trendData.value = []
     
     // 显示错误信息
-    if (error.response?.status === 404) {
+    if (error.response?.status === 401) {
+      alert('请先登录后再查看趋势图')
+    } else if (error.response?.status === 404) {
       alert('用户不存在，请重新登录')
     } else if (error.response?.status === 400) {
       alert('请求参数错误')

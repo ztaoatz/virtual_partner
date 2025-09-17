@@ -27,14 +27,15 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("", wel.welcome),
     path("index/", wel.welcome),
-    path("findstudents/", stu.findstudent),
-    path("chat/", ca.getchat),  # 原有的聊天API
+    path("findstudents/", stu.findstudent),    path("chat/", ca.getchat),  # 原有的聊天API
     path("enhanced-chat/", ca.enhanced_chat),  # 新的增强聊天API
     path("chat-history/", ca.get_chat_history),  # 获取聊天历史
-      # 情绪日记相关API
+    
+    # 情绪日记相关API
     path("generate-diary/", diary.generate_emotion_diary),  # 生成情绪日记
     path("get-diary/", diary.get_emotion_diary),  # 获取指定日期的日记
-    path("diary-dates/", diary.get_diary_dates),  # 获取有日记的日期列表    path("emotion-trend/", diary.get_emotion_trend),  # 获取情绪趋势数据
+    path("diary-dates/", diary.get_diary_dates),  # 获取有日记的日期列表
+    path("emotion-trend/", diary.get_emotion_trend),  # 获取情绪趋势数据
     path("delete-diary/", diary.delete_emotion_diary),  # 删除指定日期的日记
     
     # TTS语音服务相关API
