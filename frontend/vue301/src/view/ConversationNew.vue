@@ -134,27 +134,45 @@
         <div class="diary-header">
           <h3>情绪日记</h3>
           <button @click="closeDiary" class="close-btn">&times;</button>
-        </div>
-        
-        <div class="diary-body">
-          <!-- 日期选择器 -->
-          <div class="date-selector">
-            <input 
-              type="date" 
-              v-model="selectedDate" 
-              @change="loadDiaryForDate"
-              class="date-input"
-            />
+        </div>          <div class="diary-body">          <!-- 日期选择器和趋势图按钮 -->
+          <div class="diary-controls">
+            <div class="date-selector-row">
+              <input 
+                type="date" 
+                v-model="selectedDate" 
+                @change="loadDiaryForDate"
+                class="date-input"
+              />
+              <button @click="showEmotionTrend" class="trend-btn" title="查看情绪趋势">
+                📊 趋势
+              </button>
+            </div>
           </div>
           
           <!-- 日记内容显示 -->
           <div class="diary-display" v-if="diaryData.content">
             <div class="emotion-summary">
               <h4>今日情绪总结</h4>
-              <div class="emotion-tags">
-                <span v-for="emotion in diaryData.emotions" :key="emotion" class="emotion-tag">
-                  {{ emotion }}
-                </span>
+              <div class="emotion-info">
+                <div class="emotion-tags">
+                  <span v-for="emotion in diaryData.emotions" :key="emotion" class="emotion-tag">
+                    {{ typeof emotion === 'string' ? emotion : emotion.emotion }}
+                  </span>
+                </div>
+                <div class="emotion-score">
+                  <span class="score-label">情绪指数</span>
+                  <div class="score-display">
+                    <div class="score-bar">
+                      <div 
+                        class="score-fill" 
+                        :style="{ width: diaryData.emotionScore + '%', backgroundColor: getScoreColor(diaryData.emotionScore) }"
+                      ></div>
+                    </div>
+                    <span class="score-value" :style="{ color: getScoreColor(diaryData.emotionScore) }">
+                      {{ diaryData.emotionScore.toFixed(1) }}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
             
@@ -249,11 +267,52 @@
         </div>
       </div>
     </div>
+
+    <!-- 情绪趋势图模态框 -->
+    <div v-if="showTrendChart" class="trend-modal">
+      <div class="trend-content">
+        <div class="trend-header">
+          <h3>情绪趋势图</h3>
+          <button @click="closeTrendChart" class="close-btn">&times;</button>
+        </div>
+        
+        <div class="trend-body">
+          <div v-if="isLoadingTrend" class="loading-trend">
+            <div class="loading-spinner"></div>
+            <p>正在加载趋势数据...</p>
+          </div>
+          
+          <div v-else-if="trendData.length > 0" class="chart-container">
+            <canvas ref="trendCanvas" width="600" height="300" class="trend-chart"></canvas>
+            <div class="chart-legend">
+              <div class="legend-item">
+                <span class="legend-color" style="background: #ff6b6b;"></span>
+                <span>低情绪 (0-33)</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-color" style="background: #feca57;"></span>
+                <span>中性情绪 (34-66)</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-color" style="background: #48dbfb;"></span>
+                <span>高情绪 (67-100)</span>
+              </div>
+            </div>
+          </div>
+          
+          <div v-else class="empty-trend">
+            <div class="empty-icon">📈</div>
+            <p>暂无足够的数据生成趋势图</p>
+            <p class="hint">生成更多日记后即可查看情绪趋势</p>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import axios from 'axios'
 import Live2DCanvas from '@/components/Live2DCanvas.vue'
 
@@ -282,6 +341,11 @@ const isGeneratingDiary = ref(false)
 const diaryProgress = ref(0)
 const diaryProgressMessage = ref('')
 
+// 情绪趋势图相关
+const showTrendChart = ref(false)
+const trendData = ref([])
+const isLoadingTrend = ref(false)
+
 // 进度条计算属性
 const progressCircumference = computed(() => 2 * Math.PI * 16) // 半径16的圆周长
 const progressOffset = computed(() => {
@@ -299,7 +363,8 @@ const diaryData = reactive({
   content: '',
   emotions: [],
   messageCount: 0,
-  mainTopic: ''
+  mainTopic: '',
+  emotionScore: 0.0
 })
 const diaryDates = reactive(new Set())
 
@@ -369,6 +434,269 @@ const initSpeechRecognition = () => {
   } else {
     console.warn('浏览器不支持语音识别API，将使用MediaRecorder录音')
   }
+}
+
+// 情绪分值颜色计算
+const getScoreColor = (score) => {
+  if (score >= 67) {
+    return '#48dbfb'  // 高情绪 - 蓝色
+  } else if (score >= 34) {
+    return '#feca57'  // 中性情绪 - 黄色
+  } else {
+    return '#ff6b6b'  // 低情绪 - 红色
+  }
+}
+
+// 显示情绪趋势图
+const showEmotionTrend = async () => {
+  if (!currentUserId.value) {
+    alert('请先登录后查看趋势图')
+    return
+  }
+
+  try {
+    showTrendChart.value = true
+    isLoadingTrend.value = true
+    
+    console.log('开始获取趋势数据，用户ID:', currentUserId.value)
+    
+    // 调用后端API获取趋势数据
+    const response = await axios.get('http://127.0.0.1:8000/emotion-trend/', {
+      params: {
+        user_id: currentUserId.value,
+        days: 10  // 获取最近10天数据
+      }
+    })
+
+    console.log('趋势数据API响应:', response.data)
+
+    if (response.data && response.data.success) {
+      trendData.value = response.data.trend_data || []
+      console.log('获取到趋势数据:', trendData.value)
+      
+      // 等待下一个tick确保DOM已更新
+      await nextTick()
+      
+      // 绘制趋势图
+      if (trendData.value.length > 0) {
+        setTimeout(() => {
+          drawTrendChart()
+        }, 100)
+      }
+    } else {
+      console.error('获取趋势数据失败:', response.data)
+      trendData.value = []
+    }
+  } catch (error) {
+    console.error('加载趋势数据失败:', error)
+    trendData.value = []
+    
+    // 显示错误信息
+    if (error.response?.status === 404) {
+      alert('用户不存在，请重新登录')
+    } else if (error.response?.status === 400) {
+      alert('请求参数错误')
+    } else {
+      alert('加载趋势数据失败，请稍后重试')
+    }
+  } finally {
+    isLoadingTrend.value = false
+  }
+}
+
+// 关闭趋势图模态框
+const closeTrendChart = () => {
+  showTrendChart.value = false
+  trendData.value = []
+}
+
+// 绘制趋势图表
+const drawTrendChart = () => {
+  console.log('开始绘制趋势图，数据:', trendData.value)
+  
+  const canvas = document.querySelector('.trend-chart')
+  if (!canvas) {
+    console.error('找不到canvas元素')
+    return
+  }
+  
+  if (!trendData.value || trendData.value.length === 0) {
+    console.warn('没有趋势数据可绘制')
+    return
+  }
+
+  const ctx = canvas.getContext('2d')
+  const width = canvas.width
+  const height = canvas.height
+  
+  console.log('Canvas尺寸:', { width, height })
+  
+  // 清空画布
+  ctx.clearRect(0, 0, width, height)
+  
+  // 设置画布样式
+  ctx.font = '12px Arial'
+  ctx.textAlign = 'center'
+  
+  // 计算图表区域
+  const margin = { top: 40, right: 30, bottom: 80, left: 70 }
+  const chartWidth = width - margin.left - margin.right
+  const chartHeight = height - margin.top - margin.bottom
+  
+  console.log('图表区域:', { chartWidth, chartHeight })
+  
+  // 绘制背景
+  ctx.fillStyle = '#fafafa'
+  ctx.fillRect(margin.left, margin.top, chartWidth, chartHeight)
+  
+  // 绘制边框
+  ctx.strokeStyle = '#ddd'
+  ctx.lineWidth = 1
+  ctx.strokeRect(margin.left, margin.top, chartWidth, chartHeight)
+  
+  // 绘制网格线
+  ctx.strokeStyle = '#f0f0f0'
+  ctx.lineWidth = 1
+  
+  // 垂直网格线
+  const dataLength = trendData.value.length
+  for (let i = 0; i <= dataLength; i++) {
+    const x = margin.left + (i * chartWidth / dataLength)
+    ctx.beginPath()
+    ctx.moveTo(x, margin.top)
+    ctx.lineTo(x, height - margin.bottom)
+    ctx.stroke()
+  }
+  
+  // 水平网格线
+  for (let i = 0; i <= 5; i++) {
+    const y = margin.top + (i * chartHeight / 5)
+    ctx.beginPath()
+    ctx.moveTo(margin.left, y)
+    ctx.lineTo(width - margin.right, y)
+    ctx.stroke()
+  }
+  
+  // 绘制Y轴标签（情绪分值）
+  ctx.fillStyle = '#666'
+  ctx.textAlign = 'right'
+  ctx.font = '11px Arial'
+  for (let i = 0; i <= 5; i++) {
+    const y = margin.top + (i * chartHeight / 5)
+    const value = 100 - (i * 20)
+    ctx.fillText(value.toString(), margin.left - 15, y + 4)
+  }
+  
+  // 绘制X轴标签（日期）
+  ctx.textAlign = 'center'
+  ctx.font = '10px Arial'
+  trendData.value.forEach((item, index) => {
+    const x = margin.left + ((index + 0.5) * chartWidth / dataLength)
+    const dateStr = new Date(item.date).toLocaleDateString('zh-CN', { 
+      month: 'numeric', 
+      day: 'numeric' 
+    })
+    
+    // 旋转文本以避免重叠
+    ctx.save()
+    ctx.translate(x, height - margin.bottom + 20)
+    ctx.rotate(-Math.PI / 6)
+    ctx.fillText(dateStr, 0, 0)
+    ctx.restore()
+  })
+  
+  // 绘制趋势线
+  if (dataLength > 1) {
+    ctx.strokeStyle = '#5dade2'
+    ctx.lineWidth = 3
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    ctx.beginPath()
+    
+    trendData.value.forEach((item, index) => {
+      const x = margin.left + ((index + 0.5) * chartWidth / dataLength)
+      const y = margin.top + ((100 - item.emotion_score) * chartHeight / 100)
+      
+      if (index === 0) {
+        ctx.moveTo(x, y)
+      } else {
+        ctx.lineTo(x, y)
+      }
+    })
+    
+    ctx.stroke()
+  }
+  
+  // 绘制数据点
+  trendData.value.forEach((item, index) => {
+    const x = margin.left + ((index + 0.5) * chartWidth / dataLength)
+    const y = margin.top + ((100 - item.emotion_score) * chartHeight / 100)
+    
+    // 根据分值选择颜色
+    const color = getScoreColor(item.emotion_score)
+    
+    // 绘制数据点外圈
+    ctx.fillStyle = '#fff'
+    ctx.beginPath()
+    ctx.arc(x, y, 8, 0, 2 * Math.PI)
+    ctx.fill()
+    
+    // 绘制数据点
+    ctx.fillStyle = color
+    ctx.beginPath()
+    ctx.arc(x, y, 6, 0, 2 * Math.PI)
+    ctx.fill()
+    
+    // 绘制边框
+    ctx.strokeStyle = '#fff'
+    ctx.lineWidth = 2
+    ctx.stroke()
+    
+    // 显示分值
+    ctx.fillStyle = '#333'
+    ctx.font = 'bold 11px Arial'
+    ctx.textAlign = 'center'
+    ctx.fillText(item.emotion_score.toFixed(1), x, y - 15)
+    
+    // 检查是否是选中的日期
+    if (item.date === selectedDate.value) {
+      // 高亮当前选中的日期
+      ctx.strokeStyle = '#ff9f43'
+      ctx.lineWidth = 3
+      ctx.beginPath()
+      ctx.arc(x, y, 10, 0, 2 * Math.PI)
+      ctx.stroke()
+      
+      // 添加选中标记
+      ctx.fillStyle = '#ff9f43'
+      ctx.font = 'bold 12px Arial'
+      ctx.fillText('●', x, y + 25)
+    }
+  })
+  
+  // 绘制图表标题
+  ctx.fillStyle = '#2c3e50'
+  ctx.font = 'bold 16px Arial'
+  ctx.textAlign = 'center'
+  ctx.fillText('最近10天情绪趋势分析', width / 2, 25)
+  
+  // 绘制Y轴标题
+  ctx.save()
+  ctx.translate(20, height / 2)
+  ctx.rotate(-Math.PI / 2)
+  ctx.fillStyle = '#666'
+  ctx.font = '12px Arial'
+  ctx.textAlign = 'center'
+  ctx.fillText('情绪分值', 0, 0)
+  ctx.restore()
+  
+  // 绘制X轴标题
+  ctx.fillStyle = '#666'
+  ctx.font = '12px Arial'
+  ctx.textAlign = 'center'
+  ctx.fillText('日期', width / 2, height - 10)
+  
+  console.log('趋势图绘制完成')
 }
 
 // 方法
@@ -697,13 +1025,13 @@ const loadDiaryForDate = async () => {
       
       if (response.data && response.data.success) {
         const diary = response.data.diary
-        
-        if (diary && diary.date === selectedDate.value) {
+          if (diary && diary.date === selectedDate.value) {
           Object.assign(diaryData, {
             content: diary.content,
             emotions: diary.emotions || [],
             messageCount: diary.message_count || 0,
-            mainTopic: diary.main_topic || ''
+            mainTopic: diary.main_topic || '',
+            emotionScore: diary.emotion_score || 0.0
           })
           
           // 保存到localStorage
@@ -738,8 +1066,7 @@ const loadDiaryForDate = async () => {
           return
         }
       }
-    } catch (error) {
-      console.log('检查聊天记录失败:', error)
+    } catch (error) {      console.log('检查聊天记录失败:', error)
     }
     
     // 清空数据
@@ -747,6 +1074,7 @@ const loadDiaryForDate = async () => {
     diaryData.emotions = []
     diaryData.messageCount = 0
     diaryData.mainTopic = ''
+    diaryData.emotionScore = 0.0
     
   } catch (error) {
     console.error('加载日记失败:', error)
@@ -755,6 +1083,7 @@ const loadDiaryForDate = async () => {
     diaryData.emotions = []
     diaryData.messageCount = 0
     diaryData.mainTopic = ''
+    diaryData.emotionScore = 0.0
   }
 }
 
@@ -819,13 +1148,13 @@ const generateDiary = async () => {
       diaryProgressMessage.value = '生成完成！'
       
       const diary = response.data.diary
-      
-      // 更新日记数据
+        // 更新日记数据
       Object.assign(diaryData, {
         content: diary.content,
         emotions: diary.emotions.map(e => typeof e === 'string' ? e : e.emotion), // 兼容不同格式
         messageCount: diary.message_count,
         mainTopic: diary.main_topic,
+        emotionScore: diary.emotion_score || 0.0,
         date: diary.date
       })
       
@@ -907,13 +1236,13 @@ const regenerateDiary = async () => {
 
     if (response.data && response.data.success) {
       const diary = response.data.diary
-      
-      // 更新日记数据
+        // 更新日记数据
       Object.assign(diaryData, {
         content: diary.content,
         emotions: diary.emotions.map(e => typeof e === 'string' ? e : e.emotion),
         messageCount: diary.message_count,
         mainTopic: diary.main_topic,
+        emotionScore: diary.emotion_score || 0.0,
         date: diary.date
       })
       
@@ -1186,13 +1515,13 @@ const initializeUserSession = () => {
 // 清除日记相关数据的函数
 const clearDiaryData = () => {
   console.log('清除日记相关数据')
-  
-  // 清空日记反应式数据
+    // 清空日记反应式数据
   Object.assign(diaryData, {
     content: '',
     emotions: [],
     messageCount: 0,
-    mainTopic: ''
+    mainTopic: '',
+    emotionScore: 0.0
   })
   
   // 清空日记日期集合
@@ -2119,12 +2448,18 @@ onUnmounted(() => {
   overflow-y: auto;
 }
 
-.date-selector {
+.diary-controls {
   margin-bottom: 20px;
 }
 
+.date-selector-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
 .date-input {
-  width: 100%;
+  flex: 1;
   padding: 12px 15px;
   border: 2px solid rgba(212, 197, 169, 0.3);
   border-radius: 10px;
@@ -2138,6 +2473,27 @@ onUnmounted(() => {
   outline: none;
   border-color: #d4c5a9;
   box-shadow: 0 0 10px rgba(212, 197, 169, 0.2);
+}
+
+.trend-btn {
+  background: linear-gradient(135deg, #5dade2, #48c9b0);
+  color: white;
+  border: none;
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(93, 173, 226, 0.3);
+  white-space: nowrap;
+  min-width: 80px;
+}
+
+.trend-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(93, 173, 226, 0.4);
+  background: linear-gradient(135deg, #48c9b0, #5dade2);
 }
 
 .diary-display {
@@ -2294,31 +2650,313 @@ onUnmounted(() => {
   transform: rotate(360deg);
 }
 
+/* 情绪分值显示样式 */
+.emotion-score {
+  margin-top: 15px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 10px;
+  border: 1px solid rgba(212, 197, 169, 0.2);
+}
+
+.score-label {
+  display: block;
+  font-size: 12px;
+  color: #999;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.score-display {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.score-bar {
+  flex: 1;
+  height: 8px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.score-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: all 0.3s ease;
+}
+
+.score-value {
+  font-size: 16px;
+  font-weight: 600;
+  min-width: 40px;
+  text-align: right;
+}
+
+/* 日记控制区域样式 */
+.diary-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.date-selector {
+  flex: 1;
+}
+
+.trend-btn {
+  background: linear-gradient(135deg, #5dade2, #48a6d8);
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 15px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 3px 10px rgba(93, 173, 226, 0.3);
+  white-space: nowrap;
+}
+
+.trend-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 15px rgba(93, 173, 226, 0.4);
+}
+
+/* 趋势图模态框样式 */
+.trend-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1001;
+  backdrop-filter: blur(5px);
+}
+
+.trend-content {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border-radius: 20px;
+  width: 90%;
+  max-width: 700px;
+  max-height: 80vh;
+  overflow: hidden;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.trend-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 25px;
+  border-bottom: 1px solid rgba(93, 173, 226, 0.2);
+  background: linear-gradient(135deg, rgba(93, 173, 226, 0.1), rgba(72, 201, 176, 0.1));
+}
+
+.trend-header h3 {
+  margin: 0;
+  color: #2c3e50;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.trend-body {
+  padding: 25px;
+  max-height: calc(80vh - 80px);
+  overflow-y: auto;
+}
+
+.loading-trend {
+  text-align: center;
+  padding: 40px 20px;
+  color: #666;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(93, 173, 226, 0.2);
+  border-top: 4px solid #5dade2;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 15px;
+}
+
+.chart-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.trend-chart {
+  border: 1px solid rgba(93, 173, 226, 0.2);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.chart-legend {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #666;
+}
+
+.legend-color {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.empty-trend {
+  text-align: center;
+  padding: 40px 20px;
+  color: #999;
+}
+
+.empty-icon {
+  font-size: 48px;
+  margin-bottom: 15px;
+  color: #ccc;
+}
+
+.empty-trend p {
+  margin: 0 0 10px 0;
+  font-size: 16px;
+}
+
+.empty-trend .hint {
+  font-size: 14px;
+  color: #bbb;
+}
+
 /* 响应式适配 */
 @media (max-width: 768px) {
-  .diary-toggle {
-    bottom: 120px;
-    right: 15px;
-    width: 35px;
-    height: 35px;
-  }
-  
-  .diary-content {
+  .trend-content {
     width: 95%;
     max-height: 85vh;
   }
   
-  .diary-header {
+  .trend-header {
     padding: 15px 20px;
   }
   
-  .diary-body {
+  .trend-body {
     padding: 20px;
   }
   
-  .stats-grid {
-    grid-template-columns: 1fr;
+  .trend-chart {
+    width: 100%;
+    max-width: none;
+  }
+  
+  .chart-legend {
+    gap: 15px;
+  }
+  
+  .legend-item {
+    font-size: 12px;
+  }
+  
+  .date-selector-row {
+    flex-direction: column;
     gap: 10px;
+  }
+  
+  .date-input {
+    width: 100%;
+  }
+  
+  .trend-btn {
+    width: 100%;
+  }
+}
+
+/* 情绪信息区域布局 */
+.emotion-info {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+/* 响应式适配 */
+@media (max-width: 768px) {
+  .diary-controls {
+    flex-direction: column;
+    gap: 15px;
+  }
+  
+  .trend-btn {
+    width: 100%;
+    padding: 10px 15px;
+  }
+  
+  .trend-content {
+    width: 95%;
+    max-height: 85vh;
+  }
+  
+  .trend-header {
+    padding: 15px 20px;
+  }
+  
+  .trend-body {
+    padding: 20px;
+  }
+  
+  .chart-legend {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .score-display {
+    flex-direction: column;
+    gap: 8px;
+    align-items: stretch;
+  }
+  
+  .score-value {
+    text-align: center;
+  }
+}
+
+/* 小屏幕进一步优化 */
+@media (max-width: 480px) {
+  .trend-chart {
+    width: 100%;
+    height: 200px;
+  }
+  
+  .emotion-info {
+    gap: 10px;
+  }
+  
+  .emotion-tags {
+    gap: 6px;
+  }
+  
+  .emotion-tag {
+    padding: 4px 8px;
+    font-size: 11px;
   }
 }
 

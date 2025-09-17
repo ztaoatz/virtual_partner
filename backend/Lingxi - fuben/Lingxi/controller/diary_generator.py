@@ -11,6 +11,75 @@ from datetime import datetime, timedelta
 from django.utils import timezone
 from django.core.exceptions import ObjectDoesNotExist
 
+def calculate_emotion_score(emotions_data):
+    """
+    计算情绪分值的函数
+    基于情绪类型和强度进行加权计算
+    """
+    # 情绪权重映射
+    emotion_weights = {
+        '开心': 2.0,
+        '快乐': 2.0,
+        '兴奋': 1.8,
+        '愉快': 1.5,
+        '喜悦': 1.8,
+        '满足': 1.2,
+        '平静': 0.8,
+        '安静': 0.5,
+        '轻松': 1.0,
+        '舒适': 1.0,
+        '宁静': 0.8,
+        '焦虑': -1.2,
+        '紧张': -1.0,
+        '担心': -1.0,
+        '不安': -1.2,
+        '忧虑': -1.0,
+        '压力': -1.2,
+        '难过': -1.5,
+        '伤心': -1.8,
+        '悲伤': -1.8,
+        '沮丧': -1.5,
+        '失落': -1.2,
+        '郁闷': -1.0,
+        '愤怒': -2.0,
+        '生气': -1.8,
+        '烦躁': -1.5,
+        '恼火': -1.5,
+        '气愤': -1.8,
+        '疲惫': -0.5,
+        '累': -0.5,
+        '疲劳': -0.5,
+        '困': -0.3,
+        '乏力': -0.5
+    }
+    
+    if not emotions_data:
+        return 0.0
+    
+    total_score = 0.0
+    total_intensity = 0
+    
+    for emotion_item in emotions_data:
+        if isinstance(emotion_item, dict):
+            emotion = emotion_item.get('emotion', '')
+            intensity = emotion_item.get('intensity', 0)
+        elif isinstance(emotion_item, str):
+            emotion = emotion_item
+            intensity = 50  # 默认强度
+        else:
+            continue
+        
+        weight = emotion_weights.get(emotion, 0.0)
+        total_score += weight * intensity
+        total_intensity += intensity
+    
+    # 归一化到0-100范围，50为中性
+    if total_intensity > 0:
+        normalized_score = 50 + (total_score / total_intensity) * 25
+        return max(0, min(100, normalized_score))
+    
+    return 50.0  # 中性分值
+
 @csrf_exempt
 def generate_emotion_diary(request):
     """生成用户的情绪日记"""
@@ -90,7 +159,6 @@ def generate_emotion_diary(request):
             'user_name': profile.nickname or user.username,
             'date': target_date
         }
-        
         print(f"调用Ollama生成日记，用户: {user.username}, 日期: {target_date}, 消息数: {len(chat_history)}")
         
         try:
@@ -122,12 +190,17 @@ def generate_emotion_diary(request):
                 'details': '请确认Ollama代理服务正在运行'
             }, status=500)
         
+        # 计算情绪分值
+        emotions_data = diary_result.get('emotions', [])
+        emotion_score = calculate_emotion_score(emotions_data)
+        
         # 保存或更新情绪日记
         diary_data = {
             'content': diary_result.get('diary_content', ''),
-            'emotions': json.dumps(diary_result.get('emotions', []), ensure_ascii=False),
+            'emotions': json.dumps(emotions_data, ensure_ascii=False),
             'main_topic': diary_result.get('main_topic', '日常交流'),
             'message_count': len(chat_history),
+            'emotion_score': emotion_score,
             'date': target_datetime
         }
         
@@ -153,6 +226,7 @@ def generate_emotion_diary(request):
                 'emotions': json.loads(diary_obj.emotions) if diary_obj.emotions else [],
                 'main_topic': diary_obj.main_topic,
                 'message_count': diary_obj.message_count,
+                'emotion_score': diary_obj.emotion_score,
                 'date': diary_obj.date.strftime('%Y-%m-%d'),
                 'created_at': diary_obj.created_at.isoformat(),
                 'is_regenerated': force_regenerate and existing_diary is not None
@@ -191,7 +265,6 @@ def get_emotion_diary(request):
                 user=user,
                 date=target_date
             )
-            
             return JsonResponse({
                 'success': True,
                 'diary': {
@@ -200,6 +273,7 @@ def get_emotion_diary(request):
                     'emotions': json.loads(diary.emotions) if diary.emotions else [],
                     'main_topic': diary.main_topic,
                     'message_count': diary.message_count,
+                    'emotion_score': diary.emotion_score,
                     'date': diary.date.strftime('%Y-%m-%d'),
                     'created_at': diary.created_at.isoformat()
                 }
@@ -249,6 +323,52 @@ def get_diary_dates(request):
     except Exception as e:
         print(f"获取日记日期错误: {e}")
         return JsonResponse({'error': f'获取日记日期失败: {str(e)}'}, status=500)
+
+@csrf_exempt
+def get_emotion_trend(request):
+    """获取用户最近10天的情绪趋势数据"""
+    if request.method != 'GET':
+        return JsonResponse({'error': '只支持GET请求'}, status=405)
+    
+    try:
+        user_id = request.GET.get('user_id')
+        days = int(request.GET.get('days', 10))  # 默认获取最近10天
+        
+        if not user_id:
+            return JsonResponse({'error': '缺少用户ID'}, status=400)
+        
+        # 获取用户信息
+        try:
+            profile = UserProfile.objects.get(external_user_id=user_id)
+            user = profile.user
+        except UserProfile.DoesNotExist:
+            return JsonResponse({'error': '用户不存在'}, status=404)
+        
+        # 获取用户最近指定天数的日记，按日期排序
+        diaries = EmotionDiary.objects.filter(
+            user=user
+        ).order_by('-date')[:days]
+        
+        # 构建趋势数据
+        trend_data = []
+        for diary in reversed(diaries):  # 反转以获得时间正序
+            trend_data.append({
+                'date': diary.date.strftime('%Y-%m-%d'),
+                'emotion_score': diary.emotion_score,
+                'main_emotion': diary.main_topic or '日常',
+                'message_count': diary.message_count,
+                'emotions': json.loads(diary.emotions) if diary.emotions else []
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'trend_data': trend_data,
+            'total_days': len(trend_data)
+        })
+        
+    except Exception as e:
+        print(f"获取情绪趋势错误: {e}")
+        return JsonResponse({'error': f'获取情绪趋势失败: {str(e)}'}, status=500)
 
 @csrf_exempt
 def delete_emotion_diary(request):

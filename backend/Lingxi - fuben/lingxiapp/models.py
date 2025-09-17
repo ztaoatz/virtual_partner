@@ -63,6 +63,7 @@ class EmotionDiary(models.Model):
     emotions = models.TextField(blank=True, null=True)  # JSON格式的情绪分析结果
     main_topic = models.CharField(max_length=50, blank=True, null=True)  # 主要话题
     message_count = models.IntegerField(default=0)  # 该日期的消息数量
+    emotion_score = models.FloatField(default=0.0)  # 当日情绪分值
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
