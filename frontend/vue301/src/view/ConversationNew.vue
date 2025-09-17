@@ -2042,11 +2042,11 @@ onUnmounted(() => {
   overflow-y: auto;
   z-index: 3;
   transition: all 0.3s ease;
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(10px);
+  background: transparent; /* 完全透明，不挡住底层模型 */
+  /* backdrop-filter: blur(10px); */ /* 移除磨砂效果 */
   border-radius: 20px;
   padding: 15px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  /* border: 1px solid rgba(255, 255, 255, 0.1); */ /* 移除边框 */
 }
 
 /* 滚动条样式优化 */
@@ -2087,23 +2087,24 @@ onUnmounted(() => {
   padding: 14px 18px; /* 增加内边距 */
   border-radius: 18px;
   position: relative;
-  backdrop-filter: blur(20px);
+  backdrop-filter: blur(5px); /* 减少模糊效果 */
   border: 1px solid rgba(255, 255, 255, 0.3);
   animation: messageAppear 0.5s ease-out;
   font-size: 15px; /* 稍微增大字体 */
   line-height: 1.5;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); /* 添加轻微阴影提高可读性 */
 }
 
 .message-bubble.user {
   align-self: flex-end;
-  background: rgba(212, 197, 169, 0.8);
+  background: rgba(212, 197, 169, 0.9); /* 提高不透明度确保可读性 */
   color: white;
   margin-left: auto;
 }
 
 .message-bubble.ai {
   align-self: flex-start;
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.95); /* 提高不透明度确保可读性 */
   color: #8b6f47;
 }
 
