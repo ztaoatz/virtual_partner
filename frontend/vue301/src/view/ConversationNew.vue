@@ -647,6 +647,9 @@ const openSettings = () => {
 
 // 情绪日记相关方法
 const openDiary = () => {
+  // 在打开日记时检测用户切换
+  checkUserSwitchAndClearDiary()
+  
   showDiary.value = true
   loadDiaryForDate()
 }
@@ -656,73 +659,90 @@ const closeDiary = () => {
 }
 
 const loadDiaryForDate = async () => {
+  if (!currentUserId.value) {
+    // 如果没有用户ID，清空日记数据
+    diaryData.content = ''
+    diaryData.emotions = []
+    diaryData.messageCount = 0
+    diaryData.mainTopic = ''
+    return
+  }
+
   try {
-    // 如果有用户ID，先尝试从后端加载日记
-    if (currentUserId.value) {
+    // 直接从localStorage获取日记数据（因为用户切换检测已在openDiary时处理）
+    const diaryKey = `diary_${selectedDate.value}`
+    const localDiary = localStorage.getItem(diaryKey)
+    
+    if (localDiary) {
       try {
-        const response = await axios.get('http://127.0.0.1:8000/get-diary/', {
-          params: {
-            user_id: currentUserId.value,
-            date: selectedDate.value
-          }
-        })
+        const parsedDiary = JSON.parse(localDiary)
+        Object.assign(diaryData, parsedDiary)
+        console.log('从localStorage加载日记数据:', selectedDate.value)
+        return // 使用缓存的数据
+      } catch (e) {
+        console.log('localStorage日记数据格式错误，清除')
+        localStorage.removeItem(diaryKey)
+      }
+    }
+
+    // 尝试从后端加载日记
+    console.log('从后端加载日记数据:', selectedDate.value)
+    try {
+      const response = await axios.get('http://127.0.0.1:8000/get-diary/', {
+        params: {
+          user_id: currentUserId.value,
+          date: selectedDate.value
+        }
+      })
+      
+      if (response.data && response.data.success) {
+        const diary = response.data.diary
         
-        if (response.data && response.data.success) {
-          const diary = response.data.diary
+        if (diary && diary.date === selectedDate.value) {
           Object.assign(diaryData, {
             content: diary.content,
-            emotions: diary.emotions,
-            messageCount: diary.message_count,
-            mainTopic: diary.main_topic,
-            date: diary.date
+            emotions: diary.emotions || [],
+            messageCount: diary.message_count || 0,
+            mainTopic: diary.main_topic || ''
           })
           
-          // 保存到本地存储作为缓存
-          localStorage.setItem(`diary_${selectedDate.value}`, JSON.stringify(diaryData))
+          // 保存到localStorage
+          localStorage.setItem(diaryKey, JSON.stringify(diaryData))
           diaryDates.add(selectedDate.value)
           return
         }
-      } catch (error) {
-        console.log('后端没有该日期的日记记录')
       }
-    }
-    
-    // 如果后端没有，尝试从本地存储加载
-    const storedDiary = localStorage.getItem(`diary_${selectedDate.value}`)
-    if (storedDiary) {
-      const parsed = JSON.parse(storedDiary)
-      Object.assign(diaryData, parsed)
-      return
+    } catch (error) {
+      console.log('后端没有该日期的日记记录')
     }
     
     // 如果都没有，检查该日期是否有聊天记录
-    if (currentUserId.value) {
-      try {
-        const historyResponse = await axios.get('http://127.0.0.1:8000/chat-history/', {
-          params: { user_id: currentUserId.value }
+    try {
+      const historyResponse = await axios.get('http://127.0.0.1:8000/chat-history/', {
+        params: { user_id: currentUserId.value }
+      })
+      
+      if (historyResponse.data?.success && historyResponse.data.messages) {
+        const targetDate = selectedDate.value
+        const messagesFromDate = historyResponse.data.messages.filter(msg => {
+          const msgDate = new Date(msg.timestamp).toISOString().split('T')[0]
+          return msgDate === targetDate
         })
         
-        if (historyResponse.data?.success && historyResponse.data.messages) {
-          const targetDate = selectedDate.value
-          const messagesFromDate = historyResponse.data.messages.filter(msg => {
-            const msgDate = new Date(msg.timestamp).toISOString().split('T')[0]
-            return msgDate === targetDate
-          })
-          
-          if (messagesFromDate.length >= 2) {
-            // 有足够的消息记录，提示可以生成日记
-            diaryData.content = '该日期有聊天记录，点击"生成今日日记"按钮来创建AI情绪日记'
-            diaryData.emotions = []
-            diaryData.messageCount = Math.floor(messagesFromDate.length / 2)
-            diaryData.mainTopic = '待分析'
-            return
-          }
+        if (messagesFromDate.length >= 2) {
+          // 有足够的消息记录，提示可以生成日记
+          diaryData.content = '该日期有聊天记录，点击"生成今日日记"按钮来创建AI情绪日记'
+          diaryData.emotions = []
+          diaryData.messageCount = Math.floor(messagesFromDate.length / 2)
+          diaryData.mainTopic = '待分析'
+          return
         }
-      } catch (error) {
-        console.log('检查聊天记录失败:', error)
       }
+    } catch (error) {
+      console.log('检查聊天记录失败:', error)
     }
-      // 清空数据
+    
+    // 清空数据
     diaryData.content = ''
     diaryData.emotions = []
     diaryData.messageCount = 0
@@ -1129,14 +1149,8 @@ const initializeUserSession = () => {
     storedUserId = userInfo.user_id
     console.log('使用已登录用户ID:', storedUserId)
     
-    // 检查localStorage中的用户ID是否与当前登录用户匹配
-    const localStorageUserId = localStorage.getItem('virtual_partner_user_id')
-    if (localStorageUserId !== storedUserId) {
-      // 如果不匹配，说明用户已切换，清除旧的会话数据
-      console.log('检测到用户切换，清除旧会话数据')
-      localStorage.setItem('virtual_partner_user_id', storedUserId)
-      localStorage.removeItem('virtual_partner_session_id')
-    }
+    // 设置用户ID到localStorage（不再在这里检测切换）
+    localStorage.setItem('virtual_partner_user_id', storedUserId)
   } else {
     // 如果没有登录用户，从localStorage获取或生成临时用户ID
     storedUserId = localStorage.getItem('virtual_partner_user_id')
@@ -1167,6 +1181,81 @@ const initializeUserSession = () => {
     userId: currentUserId.value,
     sessionId: currentSessionId.value
   })
+}
+
+// 清除日记相关数据的函数
+const clearDiaryData = () => {
+  console.log('清除日记相关数据')
+  
+  // 清空日记反应式数据
+  Object.assign(diaryData, {
+    content: '',
+    emotions: [],
+    messageCount: 0,
+    mainTopic: ''
+  })
+  
+  // 清空日记日期集合
+  diaryDates.clear()
+  
+  // 清除localStorage中的日记数据
+  // 获取所有localStorage键
+  const keys = Object.keys(localStorage)
+  
+  // 删除所有以diary_开头的localStorage项
+  keys.forEach(key => {
+    if (key.startsWith('diary_')) {
+      localStorage.removeItem(key)
+      console.log('清除localStorage中的日记数据:', key)
+    }
+  })
+  
+  // 重置日记相关状态
+  showDiary.value = false
+  isGeneratingDiary.value = false
+  diaryProgress.value = 0
+  diaryProgressMessage.value = ''
+  selectedDate.value = new Date().toISOString().split('T')[0]
+}
+
+// 检测用户切换并清除日记数据的函数
+const checkUserSwitchAndClearDiary = () => {
+  console.log('检查用户切换状态...')
+  
+  // 获取当前登录用户信息
+  const userInfo = JSON.parse(sessionStorage.getItem('userInfo') || '{}')
+  
+  // 获取localStorage中存储的用户ID
+  const localStorageUserId = localStorage.getItem('virtual_partner_user_id')
+  
+  // 如果有已登录用户
+  if (userInfo.user_id) {
+    // 检查localStorage中的用户ID是否与当前登录用户匹配
+    if (localStorageUserId !== userInfo.user_id) {
+      console.log('检测到用户切换，清除旧用户的日记数据')
+      console.log('  旧用户ID:', localStorageUserId)
+      console.log('  新用户ID:', userInfo.user_id)
+      
+      // 更新localStorage中的用户ID
+      localStorage.setItem('virtual_partner_user_id', userInfo.user_id)
+      
+      // 清除旧用户的会话数据
+      localStorage.removeItem('virtual_partner_session_id')
+      
+      // 清除旧用户的日记数据
+      clearDiaryData()
+      
+      // 更新当前用户ID
+      currentUserId.value = userInfo.user_id
+      currentSessionId.value = null
+      
+      console.log('用户切换处理完成，已清除旧用户数据')
+    } else {
+      console.log('用户未切换，保持当前状态')
+    }
+  } else {
+    console.log('未检测到登录用户，使用临时用户')
+  }
 }
 
 // 生成UUID的辅助函数

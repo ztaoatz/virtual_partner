@@ -80,6 +80,21 @@ const saveActiveNav = (path) => {
 const logout = () => {
   // 清除缓存
   sessionStorage.clear();
+  
+  // 清除localStorage中的会话和日记数据
+  localStorage.removeItem('virtual_partner_user_id');
+  localStorage.removeItem('virtual_partner_session_id');
+  
+  // 清除日记相关的localStorage数据
+  const keys = Object.keys(localStorage);
+  keys.forEach(key => {
+    if (key.startsWith('diary_')) {
+      localStorage.removeItem(key);
+      console.log('退出登录时清除日记数据:', key);
+    }
+  });
+  
+  console.log('用户退出登录，清除所有相关数据');
   router.push("/login");
 };
 
