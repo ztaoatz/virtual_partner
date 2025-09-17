@@ -132,7 +132,7 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   // 修改页面 title
   if (to.meta.title) {
-    document.title = "知否技术 - " + to.meta.title;
+    document.title = "灵犀 - 虚拟情绪陪伴助手 - " + to.meta.title;
   }
 
   if (to.path === "art") {
