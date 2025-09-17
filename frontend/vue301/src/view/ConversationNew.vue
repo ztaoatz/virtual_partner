@@ -84,12 +84,24 @@
             <div class="recording-wave recording-wave3"></div>
             <div class="recording-wave recording-wave4"></div>
           </div>
-          
-          <!-- 处理中的加载动画 -->
+            <!-- 处理中的加载动画 -->
           <div class="processing-spinner" v-if="isProcessing">
             <div class="spinner-ring"></div>
           </div>
         </button>
+        
+        <!-- 停止语音按钮 -->
+        <button 
+          v-if="isAISpeaking" 
+          @click="stopAISpeech"
+          class="stop-speech-button"
+          title="停止语音播放"
+        >
+          <svg viewBox="0 0 24 24" width="24" height="24">
+            <path d="M6,6H18V18H6V6Z" fill="currentColor"/>
+          </svg>
+        </button>
+          
           <!-- 录音状态提示 -->
         <div class="recording-hint" v-if="isRecording">
           <div class="pulse-dot"></div>
@@ -315,6 +327,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import axios from 'axios'
 import Live2DCanvas from '@/components/Live2DCanvas.vue'
+import nahidaTTS from '@/utils/nahidaTTS.js'
 
 // Live2D 相关引用
 const nahidaRef = ref(null)
@@ -795,6 +808,31 @@ const stopRecording = () => {
   }
 }
 
+// 停止AI语音播放
+const stopAISpeech = () => {
+  console.log('🛑 用户手动停止语音播放')
+  
+  // 停止Nahida TTS
+  if (nahidaTTS && nahidaTTS.speaking) {
+    nahidaTTS.stop()
+  }
+  
+  // 停止浏览器TTS
+  if ('speechSynthesis' in window) {
+    speechSynthesis.cancel()
+  }
+  
+  // 重置AI说话状态
+  isAISpeaking.value = false
+  
+  // 停止Live2D嘴部动画
+  if (nahidaRef.value) {
+    nahidaRef.value.stopTalking()
+  }
+  
+  partnerStatus.value = '语音已停止'
+}
+
 // 处理语音识别结果
 const handleSpeechResult = async (transcript) => {
   console.log('语音识别结果:', transcript)
@@ -894,9 +932,60 @@ const sendToAIModel = async (userInput) => {
   }
 }
 
-// 语音合成播放AI回复
-const speakText = (text) => {
+// 语音合成播放AI回复 - 使用Nahida TTS
+const speakText = async (text) => {
+  try {
+    // 首先检查Nahida TTS服务是否可用
+    const isTTSAvailable = await nahidaTTS.checkServiceStatus()
+    
+    if (isTTSAvailable) {
+      console.log('🎤 使用Nahida TTS播放语音')
+      
+      // 使用Nahida TTS
+      await nahidaTTS.speak(text, {
+        onStart: () => {
+          console.log('开始Nahida语音播放')
+          isAISpeaking.value = true
+          // 开始嘴部动画
+          if (nahidaRef.value) {
+            nahidaRef.value.startTalking()
+          }
+        },
+        onEnd: () => {
+          console.log('Nahida语音播放结束')
+          isAISpeaking.value = false
+          // 停止嘴部动画
+          if (nahidaRef.value) {
+            nahidaRef.value.stopTalking()
+          }
+        },
+        onError: (error) => {
+          console.error('Nahida TTS播放错误:', error)
+          isAISpeaking.value = false
+          // 出错时也要停止嘴部动画
+          if (nahidaRef.value) {
+            nahidaRef.value.stopTalking()
+          }
+          // 如果Nahida TTS失败，回退到浏览器TTS
+          fallbackToWebTTS(text)
+        }
+      })
+    } else {
+      console.log('🔊 Nahida TTS服务不可用，使用浏览器TTS')
+      fallbackToWebTTS(text)
+    }
+  } catch (error) {
+    console.error('Nahida TTS调用失败:', error)
+    // 如果Nahida TTS完全失败，回退到浏览器TTS
+    fallbackToWebTTS(text)
+  }
+}
+
+// 回退到浏览器Web Speech API的TTS
+const fallbackToWebTTS = (text) => {
   if ('speechSynthesis' in window) {
+    console.log('🔊 使用浏览器Web Speech API播放语音')
+    
     const utterance = new SpeechSynthesisUtterance(text)
     utterance.lang = 'zh-CN'
     utterance.rate = 0.9
@@ -904,7 +993,8 @@ const speakText = (text) => {
     utterance.volume = 0.8
     
     utterance.onstart = () => {
-      console.log('开始语音播放')
+      console.log('开始浏览器语音播放')
+      isAISpeaking.value = true
       // 开始嘴部动画
       if (nahidaRef.value) {
         nahidaRef.value.startTalking()
@@ -912,7 +1002,8 @@ const speakText = (text) => {
     }
     
     utterance.onend = () => {
-      console.log('语音播放结束')
+      console.log('浏览器语音播放结束')
+      isAISpeaking.value = false
       // 停止嘴部动画
       if (nahidaRef.value) {
         nahidaRef.value.stopTalking()
@@ -920,7 +1011,8 @@ const speakText = (text) => {
     }
     
     utterance.onerror = (event) => {
-      console.error('语音合成错误:', event.error)
+      console.error('浏览器语音合成错误:', event.error)
+      isAISpeaking.value = false
       // 出错时也要停止嘴部动画
       if (nahidaRef.value) {
         nahidaRef.value.stopTalking()
@@ -928,6 +1020,8 @@ const speakText = (text) => {
     }
     
     speechSynthesis.speak(utterance)
+  } else {
+    console.warn('浏览器不支持语音合成')
   }
 }
 
@@ -1624,10 +1718,14 @@ onUnmounted(() => {
   if (recordingTimeout) {
     clearTimeout(recordingTimeout)
   }
-  
-  // 停止语音合成
+    // 停止语音合成
   if ('speechSynthesis' in window) {
     speechSynthesis.cancel()
+  }
+  
+  // 停止Nahida TTS
+  if (nahidaTTS) {
+    nahidaTTS.stop()
   }
 })
 </script>
@@ -2238,6 +2336,44 @@ onUnmounted(() => {
     opacity: 0.5;
     transform: scale(1.2);
   }
+}
+
+/* 停止语音按钮样式 */
+.stop-speech-button {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  z-index: 10;
+}
+
+.stop-speech-button:hover {
+  background: linear-gradient(135deg, #ee5a52, #d63447);
+  box-shadow: 0 6px 20px rgba(255, 107, 107, 0.5);
+  transform: scale(1.05);
+}
+
+.stop-speech-button:active {
+  transform: scale(0.95);
+}
+
+.stop-speech-button svg {
+  transition: transform 0.2s ease;
+}
+
+.stop-speech-button:hover svg {
+  transform: scale(1.1);
 }
 
 /* 最小化控制按钮 */

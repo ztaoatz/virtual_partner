@@ -21,6 +21,7 @@ from .controller import welcomecontroller as wel
 from .controller import studentcontroller as stu
 from .controller import chatapi as ca
 from .controller import diary_generator as diary
+from .controller import tts_service as tts
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -33,9 +34,12 @@ urlpatterns = [
       # 情绪日记相关API
     path("generate-diary/", diary.generate_emotion_diary),  # 生成情绪日记
     path("get-diary/", diary.get_emotion_diary),  # 获取指定日期的日记
-    path("diary-dates/", diary.get_diary_dates),  # 获取有日记的日期列表
-    path("emotion-trend/", diary.get_emotion_trend),  # 获取情绪趋势数据
+    path("diary-dates/", diary.get_diary_dates),  # 获取有日记的日期列表    path("emotion-trend/", diary.get_emotion_trend),  # 获取情绪趋势数据
     path("delete-diary/", diary.delete_emotion_diary),  # 删除指定日期的日记
+    
+    # TTS语音服务相关API
+    path("nahida-tts/", tts.nahida_tts),  # Nahida TTS语音合成
+    path("tts-status/", tts.check_tts_status),  # 检查TTS服务状态
     
     path('appp/', include('users.urls')),
 ]
