@@ -147,19 +147,54 @@
               </button>
             </div>
           </div>
-          
-          <!-- 日记内容显示 -->
+            <!-- 日记内容显示 -->
           <div class="diary-display" v-if="diaryData.content">
             <div class="emotion-summary">
               <h4>今日情绪总结</h4>
               <div class="emotion-info">
-                <div class="emotion-tags">
-                  <span v-for="emotion in diaryData.emotions" :key="emotion" class="emotion-tag">
-                    {{ typeof emotion === 'string' ? emotion : emotion.emotion }}
-                  </span>
+                <!-- 多维度情绪分析 -->
+                <div v-if="diaryData.emotionAnalysis" class="emotion-categories">
+                  <h5>情绪维度分析</h5>
+                  <div class="category-grid">
+                    <div 
+                      v-for="(category, key) in diaryData.emotionAnalysis" 
+                      :key="key"
+                      class="category-item"
+                      v-if="category.average_score > 0"
+                    >
+                      <div class="category-header">
+                        <span class="category-color" :style="{ backgroundColor: category.color }"></span>
+                        <span class="category-name">{{ category.name }}</span>
+                        <span class="category-score">{{ category.average_score.toFixed(1) }}</span>
+                      </div>
+                      <div class="category-bar">
+                        <div 
+                          class="category-fill" 
+                          :style="{ 
+                            width: category.average_score + '%', 
+                            backgroundColor: category.color 
+                          }"
+                        ></div>
+                      </div>
+                      <div v-if="category.details && category.details.length > 0" class="category-emotions">
+                        <span 
+                          v-for="detail in category.details.slice(0, 3)" 
+                          :key="detail.emotion"
+                          class="emotion-detail"
+                        >
+                          {{ detail.emotion }}
+                        </span>
+                        <span v-if="category.details.length > 3" class="more-emotions">
+                          +{{ category.details.length - 3 }}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
+                
+                <!-- 整体情绪指数 -->
                 <div class="emotion-score">
-                  <span class="score-label">情绪指数</span>
+                  <span class="score-label">整体情绪指数</span>
                   <div class="score-display">
                     <div class="score-bar">
                       <div 
@@ -171,6 +206,13 @@
                       {{ diaryData.emotionScore.toFixed(1) }}
                     </span>
                   </div>
+                </div>
+                
+                <!-- 情绪标签 -->
+                <div class="emotion-tags">
+                  <span v-for="emotion in diaryData.emotions" :key="emotion" class="emotion-tag">
+                    {{ typeof emotion === 'string' ? emotion : emotion.emotion }}
+                  </span>
                 </div>
               </div>
             </div>
@@ -269,9 +311,8 @@
 
     <!-- 情绪趋势图模态框 -->
     <div v-if="showTrendChart" class="trend-modal">
-      <div class="trend-content">
-        <div class="trend-header">
-          <h3>情绪趋势图</h3>
+      <div class="trend-content">        <div class="trend-header">
+          <h3>多维度情绪趋势分析</h3>
           <button @click="closeTrendChart" class="close-btn">&times;</button>
         </div>
         
@@ -282,19 +323,36 @@
           </div>
           
           <div v-else-if="trendData.length > 0" class="chart-container">
-            <canvas ref="trendCanvas" width="600" height="300" class="trend-chart"></canvas>
+            <canvas ref="trendCanvas" width="700" height="400" class="trend-chart"></canvas>
             <div class="chart-legend">
+              <!-- 多维度情绪类别图例 -->
               <div class="legend-item">
-                <span class="legend-color" style="background: #ff6b6b;"></span>
-                <span>低情绪 (0-33)</span>
+                <span class="legend-color" style="background: #4CAF50;"></span>
+                <span>积极情绪</span>
               </div>
               <div class="legend-item">
-                <span class="legend-color" style="background: #feca57;"></span>
-                <span>中性情绪 (34-66)</span>
+                <span class="legend-color" style="background: #2196F3;"></span>
+                <span>平静状态</span>
               </div>
               <div class="legend-item">
-                <span class="legend-color" style="background: #48dbfb;"></span>
-                <span>高情绪 (67-100)</span>
+                <span class="legend-color" style="background: #F44336;"></span>
+                <span>消极情绪</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-color" style="background: #FF9800;"></span>
+                <span>焦虑紧张</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-color" style="background: #E91E63;"></span>
+                <span>愤怒烦躁</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-color" style="background: #9E9E9E;"></span>
+                <span>疲惫困倦</span>
+              </div>
+              <div class="legend-item overall-score">
+                <span class="legend-color" style="background: #333; border-radius: 50%;"></span>
+                <span>整体分值</span>
               </div>
             </div>
           </div>
@@ -362,6 +420,7 @@ const progressOffsetMini = computed(() => {
 const diaryData = reactive({
   content: '',
   emotions: [],
+  emotionAnalysis: null,
   messageCount: 0,
   mainTopic: '',
   emotionScore: 0.0
@@ -527,9 +586,9 @@ const closeTrendChart = () => {
   trendData.value = []
 }
 
-// 绘制趋势图表
+// 绘制多维度情绪趋势图表
 const drawTrendChart = () => {
-  console.log('开始绘制趋势图，数据:', trendData.value)
+  console.log('开始绘制多维度情绪趋势图，数据:', trendData.value)
   
   const canvas = document.querySelector('.trend-chart')
   if (!canvas) {
@@ -556,11 +615,21 @@ const drawTrendChart = () => {
   ctx.textAlign = 'center'
   
   // 计算图表区域
-  const margin = { top: 40, right: 30, bottom: 80, left: 70 }
+  const margin = { top: 50, right: 30, bottom: 80, left: 70 }
   const chartWidth = width - margin.left - margin.right
   const chartHeight = height - margin.top - margin.bottom
   
   console.log('图表区域:', { chartWidth, chartHeight })
+  
+  // 定义情绪类别配置
+  const emotionCategories = {
+    'positive': { name: '积极情绪', color: '#4CAF50' },
+    'calm': { name: '平静状态', color: '#2196F3' },
+    'negative': { name: '消极情绪', color: '#F44336' },
+    'anxious': { name: '焦虑紧张', color: '#FF9800' },
+    'angry': { name: '愤怒烦躁', color: '#E91E63' },
+    'tired': { name: '疲惫困倦', color: '#9E9E9E' }
+  }
   
   // 绘制背景
   ctx.fillStyle = '#fafafa'
@@ -622,9 +691,78 @@ const drawTrendChart = () => {
     ctx.restore()
   })
   
-  // 绘制趋势线
+  // 绘制多维度情绪趋势线
   if (dataLength > 1) {
-    ctx.strokeStyle = '#5dade2'
+    Object.keys(emotionCategories).forEach(categoryKey => {
+      const category = emotionCategories[categoryKey]
+      
+      ctx.strokeStyle = category.color
+      ctx.lineWidth = 2
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+      ctx.beginPath()
+      
+      let hasValidData = false
+      
+      trendData.value.forEach((item, index) => {
+        const x = margin.left + ((index + 0.5) * chartWidth / dataLength)
+        
+        // 获取该日期该类别的情绪分值
+        let categoryScore = 0
+        if (item.emotion_analysis && item.emotion_analysis[categoryKey]) {
+          categoryScore = item.emotion_analysis[categoryKey].average_score || 0
+        }
+        
+        const y = margin.top + ((100 - categoryScore) * chartHeight / 100)
+        
+        if (categoryScore > 0) {
+          hasValidData = true
+          if (index === 0) {
+            ctx.moveTo(x, y)
+          } else {
+            ctx.lineTo(x, y)
+          }
+        }
+      })
+      
+      if (hasValidData) {
+        ctx.stroke()
+      }
+    })
+  }
+  
+  // 绘制多维度数据点
+  trendData.value.forEach((item, index) => {
+    const x = margin.left + ((index + 0.5) * chartWidth / dataLength)
+    
+    Object.keys(emotionCategories).forEach((categoryKey, categoryIndex) => {
+      const category = emotionCategories[categoryKey]
+      
+      let categoryScore = 0
+      if (item.emotion_analysis && item.emotion_analysis[categoryKey]) {
+        categoryScore = item.emotion_analysis[categoryKey].average_score || 0
+      }
+      
+      if (categoryScore > 0) {
+        const y = margin.top + ((100 - categoryScore) * chartHeight / 100)
+        
+        // 绘制数据点
+        ctx.fillStyle = category.color
+        ctx.beginPath()
+        ctx.arc(x, y, 4, 0, 2 * Math.PI)
+        ctx.fill()
+        
+        // 绘制白色边框
+        ctx.strokeStyle = '#fff'
+        ctx.lineWidth = 1
+        ctx.stroke()
+      }
+    })
+  })
+  
+  // 绘制整体情绪趋势线（粗线）
+  if (dataLength > 1) {
+    ctx.strokeStyle = '#333'
     ctx.lineWidth = 3
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
@@ -644,7 +782,7 @@ const drawTrendChart = () => {
     ctx.stroke()
   }
   
-  // 绘制数据点
+  // 绘制整体情绪数据点（较大）
   trendData.value.forEach((item, index) => {
     const x = margin.left + ((index + 0.5) * chartWidth / dataLength)
     const y = margin.top + ((100 - item.emotion_score) * chartHeight / 100)
@@ -669,9 +807,9 @@ const drawTrendChart = () => {
     ctx.lineWidth = 2
     ctx.stroke()
     
-    // 显示分值
+    // 显示整体分值
     ctx.fillStyle = '#333'
-    ctx.font = 'bold 11px Arial'
+    ctx.font = 'bold 10px Arial'
     ctx.textAlign = 'center'
     ctx.fillText(item.emotion_score.toFixed(1), x, y - 15)
     
@@ -695,7 +833,7 @@ const drawTrendChart = () => {
   ctx.fillStyle = '#2c3e50'
   ctx.font = 'bold 16px Arial'
   ctx.textAlign = 'center'
-  ctx.fillText('最近10天情绪趋势分析', width / 2, 25)
+  ctx.fillText('多维度情绪趋势分析', width / 2, 25)
   
   // 绘制Y轴标题
   ctx.save()
@@ -1120,13 +1258,13 @@ const loadDiaryForDate = async () => {
           date: selectedDate.value
         }
       })
-      
-      if (response.data && response.data.success) {
+        if (response.data && response.data.success) {
         const diary = response.data.diary
-          if (diary && diary.date === selectedDate.value) {
+        if (diary && diary.date === selectedDate.value) {
           Object.assign(diaryData, {
             content: diary.content,
             emotions: diary.emotions || [],
+            emotionAnalysis: diary.emotion_analysis || null,
             messageCount: diary.message_count || 0,
             mainTopic: diary.main_topic || '',
             emotionScore: diary.emotion_score || 0.0
@@ -1244,12 +1382,12 @@ const generateDiary = async () => {
       // 完成进度
       diaryProgress.value = 100
       diaryProgressMessage.value = '生成完成！'
-      
-      const diary = response.data.diary
-        // 更新日记数据
+        const diary = response.data.diary
+      // 更新日记数据
       Object.assign(diaryData, {
         content: diary.content,
         emotions: diary.emotions.map(e => typeof e === 'string' ? e : e.emotion), // 兼容不同格式
+        emotionAnalysis: diary.emotion_analysis || null,
         messageCount: diary.message_count,
         mainTopic: diary.main_topic,
         emotionScore: diary.emotion_score || 0.0,
@@ -2629,6 +2767,102 @@ onUnmounted(() => {
   font-weight: 500;
 }
 
+/* 多维度情绪分析样式 */
+.emotion-categories {
+  margin-bottom: 20px;
+}
+
+.emotion-categories h5 {
+  margin: 0 0 15px 0;
+  color: #8b7355;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.category-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr;
+}
+
+.category-item {
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 12px;
+  padding: 15px;
+  border: 1px solid rgba(212, 197, 169, 0.2);
+  transition: all 0.3s ease;
+}
+
+.category-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.category-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.category-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  margin-right: 8px;
+}
+
+.category-name {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+  color: #666;
+}
+
+.category-score {
+  font-size: 14px;
+  font-weight: 600;
+  color: #8b7355;
+}
+
+.category-bar {
+  height: 6px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.category-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.5s ease;
+}
+
+.category-emotions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.emotion-detail {
+  background: rgba(212, 197, 169, 0.2);
+  color: #8b7355;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.more-emotions {
+  background: rgba(139, 115, 85, 0.8);
+  color: white;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
 .diary-text p {
   margin: 0;
   line-height: 1.6;
@@ -2913,6 +3147,32 @@ onUnmounted(() => {
   justify-content: center;
   gap: 20px;
   flex-wrap: wrap;
+  padding: 15px;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 10px;
+  border: 1px solid rgba(93, 173, 226, 0.1);
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #666;
+  font-weight: 500;
+}
+
+.legend-color {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.legend-item.overall-score .legend-color {
+  border-radius: 50%;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 
 .legend-item {

@@ -80,6 +80,97 @@ def calculate_emotion_score(emotions_data):
     
     return 50.0  # 中性分值
 
+def analyze_emotion_categories(emotions_data):
+    """
+    分析情绪类别，将情绪归类到不同维度
+    返回各个情绪维度的详细分析
+    """
+    # 情绪分类系统
+    emotion_categories = {
+        'positive': {  # 积极情绪
+            'name': '积极情绪',
+            'emotions': ['开心', '快乐', '兴奋', '愉快', '喜悦', '满足', '轻松', '舒适'],
+            'color': '#4CAF50',
+            'total_score': 0,
+            'count': 0,
+            'details': []
+        },
+        'calm': {  # 平静情绪
+            'name': '平静状态',
+            'emotions': ['平静', '安静', '宁静', '淡定', '从容', '安心'],
+            'color': '#2196F3',
+            'total_score': 0,
+            'count': 0,
+            'details': []
+        },
+        'negative': {  # 消极情绪
+            'name': '消极情绪',
+            'emotions': ['难过', '伤心', '悲伤', '沮丧', '失落', '郁闷'],
+            'color': '#F44336',
+            'total_score': 0,
+            'count': 0,
+            'details': []
+        },
+        'anxious': {  # 焦虑紧张
+            'name': '焦虑紧张',
+            'emotions': ['焦虑', '紧张', '担心', '不安', '忧虑', '压力'],
+            'color': '#FF9800',
+            'total_score': 0,
+            'count': 0,
+            'details': []
+        },
+        'angry': {  # 愤怒烦躁
+            'name': '愤怒烦躁',
+            'emotions': ['愤怒', '生气', '烦躁', '恼火', '气愤'],
+            'color': '#E91E63',
+            'total_score': 0,
+            'count': 0,
+            'details': []
+        },
+        'tired': {  # 疲惫困倦
+            'name': '疲惫困倦',
+            'emotions': ['疲惫', '累', '疲劳', '困', '乏力'],
+            'color': '#9E9E9E',
+            'total_score': 0,
+            'count': 0,
+            'details': []
+        }
+    }
+    
+    if not emotions_data:
+        return emotion_categories
+    
+    # 分析每个情绪
+    for emotion_item in emotions_data:
+        if isinstance(emotion_item, dict):
+            emotion = emotion_item.get('emotion', '')
+            intensity = emotion_item.get('intensity', 0)
+        elif isinstance(emotion_item, str):
+            emotion = emotion_item
+            intensity = 50  # 默认强度
+        else:
+            continue
+        
+        # 找到情绪所属的类别
+        for category_key, category_data in emotion_categories.items():
+            if emotion in category_data['emotions']:
+                category_data['total_score'] += intensity
+                category_data['count'] += 1
+                category_data['details'].append({
+                    'emotion': emotion,
+                    'intensity': intensity
+                })
+                break
+    
+    # 计算各类别的平均分值
+    for category_data in emotion_categories.values():
+        if category_data['count'] > 0:
+            category_data['average_score'] = category_data['total_score'] / category_data['count']
+        else:
+            category_data['average_score'] = 0
+    
+    return emotion_categories
+
 @csrf_exempt
 def generate_emotion_diary(request):
     """生成用户的情绪日记"""
@@ -189,10 +280,10 @@ def generate_emotion_diary(request):
                 'error': 'AI模型服务连接失败',
                 'details': '请确认Ollama代理服务正在运行'
             }, status=500)
-        
-        # 计算情绪分值
+          # 计算情绪分值和详细分析
         emotions_data = diary_result.get('emotions', [])
         emotion_score = calculate_emotion_score(emotions_data)
+        emotion_analysis = analyze_emotion_categories(emotions_data)
         
         # 保存或更新情绪日记
         diary_data = {
@@ -217,13 +308,13 @@ def generate_emotion_diary(request):
                 user=user,
                 **diary_data
             )
-        
         return JsonResponse({
             'success': True,
             'diary': {
                 'id': str(diary_obj.diary_id),
                 'content': diary_obj.content,
                 'emotions': json.loads(diary_obj.emotions) if diary_obj.emotions else [],
+                'emotion_analysis': emotion_analysis,  # 添加详细情绪分析
                 'main_topic': diary_obj.main_topic,
                 'message_count': diary_obj.message_count,
                 'emotion_score': diary_obj.emotion_score,
@@ -258,19 +349,22 @@ def get_emotion_diary(request):
             user = profile.user
         except UserProfile.DoesNotExist:
             return JsonResponse({'error': '用户不存在'}, status=404)
-        
-        # 查找指定日期的日记
+          # 查找指定日期的日记
         try:
             diary = EmotionDiary.objects.get(
                 user=user,
                 date=target_date
             )
+            emotions_data = json.loads(diary.emotions) if diary.emotions else []
+            emotion_analysis = analyze_emotion_categories(emotions_data)
+            
             return JsonResponse({
                 'success': True,
                 'diary': {
                     'id': str(diary.diary_id),
                     'content': diary.content,
-                    'emotions': json.loads(diary.emotions) if diary.emotions else [],
+                    'emotions': emotions_data,
+                    'emotion_analysis': emotion_analysis,  # 添加详细情绪分析
                     'main_topic': diary.main_topic,
                     'message_count': diary.message_count,
                     'emotion_score': diary.emotion_score,
@@ -352,16 +446,19 @@ def get_emotion_trend(request):
         # 获取用户最近指定天数的日记，按日期排序
         diaries = EmotionDiary.objects.filter(
             user=user
-        ).order_by('-date')[:days]
-          # 构建趋势数据
+        ).order_by('-date')[:days]        # 构建趋势数据
         trend_data = []
         for diary in reversed(diaries):  # 反转以获得时间正序
+            emotions_data = json.loads(diary.emotions) if diary.emotions else []
+            emotion_analysis = analyze_emotion_categories(emotions_data)
+            
             trend_data.append({
                 'date': diary.date.strftime('%Y-%m-%d'),
                 'emotion_score': diary.emotion_score,
                 'main_emotion': diary.main_topic or '日常',
                 'message_count': diary.message_count,
-                'emotions': json.loads(diary.emotions) if diary.emotions else []
+                'emotions': emotions_data,
+                'emotion_analysis': emotion_analysis  # 添加详细的情绪分类分析
             })
         
         # 如果没有日记数据，返回友好提示
