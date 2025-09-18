@@ -25,8 +25,8 @@
             <span class="btn-desc">优雅得体的敬酒词</span>
           </div>
         </button>
-        
-        <button class="scenario-button awkward-btn" @click="handleClick('化解尴尬', 'conversation2')">
+          <!-- 化解尴尬模块已隐藏 -->
+        <button class="scenario-button awkward-btn hidden-module" @click="handleClick('化解尴尬', 'conversation2')" style="display: none !important;">
           <div class="btn-icon">😊</div>
           <div class="btn-text">
             <span class="btn-title">化解尴尬</span>
@@ -34,14 +34,17 @@
           </div>
         </button>
         
-        <button class="scenario-button blessing-btn" @click="handleClick('送祝福', 'conversation3')">
+        <!-- 送祝福模块已隐藏 -->
+        <button class="scenario-button blessing-btn hidden-module" @click="handleClick('送祝福', 'conversation3')" style="display: none !important;">
           <div class="btn-icon">🎉</div>
           <div class="btn-text">
             <span class="btn-title">送祝福</span>
             <span class="btn-desc">温暖真诚的祝福语</span>
           </div>
         </button>
-          <button class="scenario-button special-btn" @click="handleClick('送祝福小红书版', 'conversation4')">
+        
+        <!-- 小红书祝福模块已隐藏 -->
+        <button class="scenario-button special-btn hidden-module" @click="handleClick('送祝福小红书版', 'conversation4')" style="display: none !important;">
           <div class="btn-icon">📱</div>
           <div class="btn-text">
             <span class="btn-title">小红书祝福</span>
@@ -393,5 +396,10 @@ const handleClick = (scenario, page) => {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* 隐藏的功能模块 */
+.hidden-module {
+  display: none !important;
 }
 </style>
