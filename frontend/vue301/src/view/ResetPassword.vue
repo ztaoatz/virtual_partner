@@ -393,7 +393,7 @@ const goToLogin = () => {
   right: 5px;
   top: 50%;
   transform: translateY(-50%);
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: linear-gradient(135deg, #d4c5a9, #b8a082);
   color: white;
   border: none;
   border-radius: 8px;
@@ -406,7 +406,7 @@ const goToLogin = () => {
 }
 
 .send-code-btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, #5a6fd8, #6a3093);
+  background: linear-gradient(135deg, #c9b89c, #a89276);
   transform: translateY(-50%) scale(1.02);
 }
 
@@ -417,7 +417,7 @@ const goToLogin = () => {
 }
 
 .reset-btn {
-  background: linear-gradient(135deg, #ff7b7b, #d63384);
+  background: linear-gradient(135deg, #d4c5a9, #b8a082);
   color: white;
   border: none;
   padding: 15px 30px;
@@ -431,13 +431,13 @@ const goToLogin = () => {
   justify-content: center;
   gap: 8px;
   letter-spacing: 0.5px;
-  box-shadow: 0 6px 20px rgba(255, 123, 123, 0.3);
+  box-shadow: 0 6px 20px rgba(212, 197, 169, 0.3);
 }
 
 .reset-btn:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(255, 123, 123, 0.4);
-  background: linear-gradient(135deg, #ff6b6b, #c53030);
+  box-shadow: 0 8px 25px rgba(212, 197, 169, 0.4);
+  background: linear-gradient(135deg, #c9b89c, #a89276);
 }
 
 .reset-btn:disabled {

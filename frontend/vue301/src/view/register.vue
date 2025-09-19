@@ -8,8 +8,8 @@
       <div class="cloud cloud4">☁</div>
       <div class="cloud cloud5">☁</div>
     </div>
-    
-    <div class="register-card">      <div class="welcome-section">
+      <div class="register-card">
+      <div class="welcome-section">
         <img src="@/assets/linxi.png" class="logo" alt="灵犀一言" />
         <h2 class="welcome-title">加入我们</h2>
         <p class="welcome-subtitle">开始您的AI陪伴之旅 · 邮箱注册</p>
@@ -378,13 +378,13 @@ const goToLogin = () => {
 .welcome-title {
   font-size: 1.8rem;
   font-weight: 400;
-  color: #8b6f47;
+  color: #8b6f47;  /* 温暖的棕色 */
   margin-bottom: 8px;
   letter-spacing: 1px;
 }
 
 .welcome-subtitle {
-  color: #a0956b;
+  color: #a0956b;  /* 温暖的金棕色 */
   font-size: 0.9rem;
   margin-bottom: 0;
   font-weight: 400;
@@ -409,23 +409,23 @@ const goToLogin = () => {
   font-size: 16px;
   z-index: 3;
   pointer-events: none;
-  color: #9b8f7c;
+  color: #9b8f7c;  /* 温暖的灰棕色 */
 }
 
 .warm-input {
   width: 100%;
   padding: 15px 15px 15px 45px;
-  border: 2px solid rgba(216, 180, 140, 0.3);
+  border: 2px solid rgba(216, 180, 140, 0.3);  /* 温暖的金色边框 */
   border-radius: 12px;
   font-size: 15px;
   background: rgba(255, 255, 255, 0.8);
   transition: all 0.3s ease;
   outline: none;
-  color: #7a6f5d;
+  color: #7a6f5d;  /* 温暖的棕色文本 */
 }
 
 .warm-input:focus {
-  border-color: #d4c5a9;
+  border-color: #d4c5a9;  /* 温暖的金色焦点边框 */
   background: rgba(255, 255, 255, 0.95);
   box-shadow: 0 0 15px rgba(212, 197, 169, 0.2);
   transform: translateY(-1px);
@@ -456,7 +456,7 @@ const goToLogin = () => {
 .checkbox-custom {
   width: 16px;
   height: 16px;
-  border: 2px solid #d4c5a9;
+  border: 2px solid #d4c5a9;  /* 温暖的金色边框 */
   border-radius: 3px;
   margin-right: 10px;
   margin-top: 2px;
@@ -466,7 +466,7 @@ const goToLogin = () => {
 }
 
 .checkbox-label input[type="checkbox"]:checked + .checkbox-custom {
-  background: linear-gradient(135deg, #d4c5a9, #b8a082);
+  background: linear-gradient(135deg, #d4c5a9, #b8a082);  /* 温暖的金棕色渐变 */
   border-color: #d4c5a9;
 }
 
@@ -486,19 +486,19 @@ const goToLogin = () => {
 }
 
 .warm-link {
-  color: #a89276;
+  color: #a89276;  /* 温暖的棕色 */
   text-decoration: none;
   font-weight: 500;
   transition: color 0.3s ease;
 }
 
 .warm-link:hover {
-  color: #8b6f47;
+  color: #8b6f47;  /* 悬停时的深棕色 */
   text-decoration: underline;
 }
 
 .register-btn {
-  background: linear-gradient(135deg, #d4c5a9, #b8a082);
+  background: linear-gradient(135deg, #d4c5a9, #b8a082);  /* 温暖的金棕色渐变 */
   color: white;
   border: none;
   padding: 15px 30px;
@@ -518,7 +518,7 @@ const goToLogin = () => {
 .register-btn:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: 0 8px 25px rgba(212, 197, 169, 0.4);
-  background: linear-gradient(135deg, #c9b89c, #a89276);
+  background: linear-gradient(135deg, #c9b89c, #a89276);  /* 悬停时的温暖色调 */
 }
 
 .register-btn:disabled {
@@ -558,8 +558,8 @@ const goToLogin = () => {
 }
 
 .login-link {
-  background: linear-gradient(135deg, #e8f4fd, #d4e7f4);
-  color: #7a6f5d;
+  background: linear-gradient(135deg, #e8f4fd, #d4e7f4);  /* 温暖的淡蓝色渐变 */
+  color: #7a6f5d;  /* 温暖的棕色文本 */
   border: none;
   padding: 12px 30px;
   border-radius: 12px;
@@ -576,7 +576,7 @@ const goToLogin = () => {
 .login-link:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(212, 231, 244, 0.4);
-  color: #6b6054;
+  color: #6b6054;  /* 悬停时的深棕色 */
 }
 
 /* 响应式设计 */

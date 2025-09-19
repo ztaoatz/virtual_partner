@@ -96,26 +96,36 @@ export default {
   display: flex;
   justify-content: space-around;
   padding: 50px 20px; /* 增加顶部的内边距 */
-  background-color: #f0f4ff;
+  background: linear-gradient(135deg, 
+    #fef7f0 0%,    /* 温暖的米色 */
+    #fdf2e6 25%,   /* 奶油色 */
+    #f8f4f0 50%,   /* 浅米色 */
+    #e8f4fd 75%,   /* 淡天空蓝 */
+    #d4e7f4 100%   /* 柔和蓝色 */
+  );
   height: 85vh;
 }
 
 .left-section {
   width: 20%; /* 更宽的宽度 */
   height: 80%;
-  background-color: white;
+  background-color: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
   padding: 20px;
-  border-radius: 10px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  border-radius: 15px;
+  box-shadow: 0 8px 25px rgba(139, 111, 71, 0.15);
+  border: 1px solid rgba(216, 180, 140, 0.3);
 }
 
 .right-section {
   width: 60%; /* 较窄的宽度 */
   height: 80%;
-  background-color: white;
+  background-color: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
   padding: 20px;
-  border-radius: 10px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  border-radius: 15px;
+  box-shadow: 0 8px 25px rgba(139, 111, 71, 0.15);
+  border: 1px solid rgba(216, 180, 140, 0.3);
 }
 
 .form-group {
@@ -124,55 +134,106 @@ export default {
 
 label {
   font-size: 18px;
-  color: #1d2975;
+  color: #8b6f47;
+  font-weight: 500;
 }
 
 select {
   width: 100%;
-  padding: 8px;
+  padding: 12px;
   font-size: 16px;
   margin-top: 10px;
+  border: 2px solid rgba(216, 180, 140, 0.3);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.8);
+  color: #7a6f5d;
+  transition: all 0.3s ease;
+}
+
+select:focus {
+  border-color: #d4c5a9;
+  outline: none;
+  box-shadow: 0 0 10px rgba(212, 197, 169, 0.2);
 }
 
 .helper-section {
   margin-top: 20px;
 }
 
+.helper-section p {
+  color: #8b6f47;
+  font-weight: 500;
+  margin-bottom: 10px;
+}
+
 textarea {
   width: 100%;
   height: 150px;
-  padding: 10px;
+  padding: 15px;
   margin-top: 10px;
   font-size: 16px;
-  border-radius: 5px;
-  border: 1px solid #ccc;
+  border-radius: 10px;
+  border: 2px solid rgba(216, 180, 140, 0.3);
+  background: rgba(255, 255, 255, 0.8);
+  color: #7a6f5d;
+  transition: all 0.3s ease;
+  resize: vertical;
+}
+
+textarea:focus {
+  border-color: #d4c5a9;
+  outline: none;
+  box-shadow: 0 0 10px rgba(212, 197, 169, 0.2);
+}
+
+textarea::placeholder {
+  color: #b5a593;
 }
 
 button {
   margin-top: 10px;
-  padding: 10px 20px;
+  padding: 12px 24px;
   font-size: 16px;
-  background-color: #1d2975;
+  background: linear-gradient(135deg, #d4c5a9, #b8a082);
   color: white;
   border: none;
-  border-radius: 5px;
+  border-radius: 10px;
   cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 500;
+  box-shadow: 0 4px 15px rgba(212, 197, 169, 0.3);
+}
+
+button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #c9b89c, #a89276);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(212, 197, 169, 0.4);
 }
 
 .response-box p {
-  background-color: #e0ebff;
-  padding: 10px;
-  border-radius: 5px;
+  background: rgba(248, 244, 240, 0.8);
+  padding: 15px;
+  border-radius: 10px;
+  color: #8b6f47;
+  border: 1px solid rgba(216, 180, 140, 0.3);
+  margin-bottom: 15px;
 }
 
 .button-group {
   display: flex;
   justify-content: space-between;
   margin-top: 20px;
+  gap: 15px;
+}
+
+.button-group button {
+  flex: 1;
 }
 
 button:disabled {
-  background-color: #ccc;
+  background: #ccc;
   cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 </style>
