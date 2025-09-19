@@ -148,3 +148,16 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_HEADERS = ('*')
 
+# 邮件配置
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.qq.com'  # QQ邮箱SMTP服务器，可根据需要更改
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = '2090252807@qq.com'  # 请替换为实际邮箱
+EMAIL_HOST_PASSWORD = 'fxsegbpunryfbidc'  # 请替换为邮箱授权码
+DEFAULT_FROM_EMAIL = 'Virtual Partner <2090252807@qq.com>'
+
+# 验证码相关设置
+EMAIL_VERIFICATION_CODE_EXPIRE = 300  # 验证码过期时间（秒），默认5分钟
+EMAIL_VERIFICATION_CODE_LENGTH = 6  # 验证码长度
+

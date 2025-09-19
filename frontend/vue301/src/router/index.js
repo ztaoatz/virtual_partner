@@ -123,6 +123,14 @@ const routes = [
       name: 'register',
   	  component: register,
   },
+  {
+    path: '/reset-password',
+    name: 'ResetPassword',
+    component: () => import('../view/ResetPassword.vue'),
+    meta: {
+      title: '重置密码'
+    }
+  },
 ];
 const router = createRouter({
   history: createWebHashHistory(),

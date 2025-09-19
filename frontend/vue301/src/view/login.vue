@@ -36,14 +36,18 @@
             class="warm-input"
             required
           />
-        </div>
-
-        <div class="agreement-section">
+        </div>        <div class="agreement-section">
           <label class="checkbox-label">
             <input type="checkbox" v-model="agreeToTerms" required />
             <span class="checkbox-custom"></span>
             <span class="agreement-text">我同意 <a href="#" class="warm-link">用户协议</a> 和 <a href="#" class="warm-link">隐私政策</a></span>
           </label>
+        </div>
+
+        <div class="forgot-password-section">
+          <a href="#" @click.prevent="goToResetPassword" class="forgot-password-link">
+            忘记密码？
+          </a>
         </div>
 
         <button type="submit" class="login-btn" :disabled="!agreeToTerms">
@@ -121,6 +125,10 @@ const onSubmit = async () => {
 
 const onRegister = () => {
   router.push("/register");
+};
+
+const goToResetPassword = () => {
+  router.push("/reset-password");
 };
 </script>
 
@@ -365,6 +373,24 @@ const onRegister = () => {
 }
 
 .warm-link:hover {
+  color: #8b6f47;
+  text-decoration: underline;
+}
+
+.forgot-password-section {
+  text-align: right;
+  margin: 10px 0;
+}
+
+.forgot-password-link {
+  color: #a89276;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+  transition: color 0.3s ease;
+}
+
+.forgot-password-link:hover {
   color: #8b6f47;
   text-decoration: underline;
 }

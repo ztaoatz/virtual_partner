@@ -16,16 +16,84 @@
         <p class="welcome-subtitle">开始您的AI陪伴之旅</p>
       </div>
 
+      <!-- 注册模式选择 -->
+      <div class="register-mode-tabs">
+        <button 
+          type="button" 
+          :class="['mode-tab', { active: registerMode === 'username' }]"
+          @click="registerMode = 'username'"
+        >
+          用户名注册
+        </button>
+        <button 
+          type="button" 
+          :class="['mode-tab', { active: registerMode === 'email' }]"
+          @click="registerMode = 'email'"
+        >
+          邮箱注册
+        </button>
+      </div>
+
       <form @submit.prevent="register" class="register-form">
-        <div class="input-group">
-          <div class="input-icon">👤</div>
-          <input 
-            v-model="phoneNumber" 
-            type="text" 
-            placeholder="请输入用户名"
-            class="warm-input"
-            required
-          />
+        <!-- 用户名注册模式 -->
+        <div v-if="registerMode === 'username'">
+          <div class="input-group">
+            <div class="input-icon">👤</div>
+            <input 
+              v-model="username" 
+              type="text" 
+              placeholder="请输入用户名"
+              class="warm-input"
+              required
+            />
+          </div>
+        </div>
+
+        <!-- 邮箱注册模式 -->
+        <div v-if="registerMode === 'email'">
+          <div class="input-group">
+            <div class="input-icon">👤</div>
+            <input 
+              v-model="username" 
+              type="text" 
+              placeholder="请输入用户名"
+              class="warm-input"
+              required
+            />
+          </div>
+
+          <div class="input-group">
+            <div class="input-icon">📧</div>
+            <input 
+              v-model="email" 
+              type="email" 
+              placeholder="请输入邮箱地址"
+              class="warm-input"
+              required
+            />
+          </div>
+
+          <div class="input-group verification-group">
+            <div class="input-icon">🔢</div>
+            <input 
+              v-model="verificationCode" 
+              type="text" 
+              placeholder="请输入邮箱验证码"
+              class="warm-input verification-input"
+              maxlength="6"
+              :required="registerMode === 'email'"
+            />
+            <button 
+              type="button" 
+              class="send-code-btn"
+              @click="sendVerificationCode"
+              :disabled="!email || !isValidEmail(email) || codeSending || countdown > 0"
+            >
+              <span v-if="codeSending">发送中...</span>
+              <span v-else-if="countdown > 0">{{ countdown }}s</span>
+              <span v-else>发送验证码</span>
+            </button>
+          </div>
         </div>
         
         <div class="input-group">
@@ -58,9 +126,10 @@
           </label>
         </div>
 
-        <button type="submit" class="register-btn" :disabled="!agreeToTerms">
+        <button type="submit" class="register-btn" :disabled="!agreeToTerms || registering">
           <span class="btn-icon">🎨</span>
-          创建账号
+          <span v-if="registering">注册中...</span>
+          <span v-else>创建账号</span>
         </button>
 
         <div class="divider">
@@ -77,39 +146,143 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import axios from 'axios';
 import router from "../router/index";
 
-const phoneNumber = ref('');
+// 注册模式：username（用户名注册）或 email（邮箱注册）
+const registerMode = ref('username');
+const username = ref('');
+const email = ref('');
 const password = ref('');
 const confirmPassword = ref('');
+const verificationCode = ref('');
 const agreeToTerms = ref(false);
 
+// 状态管理
+const registering = ref(false);
+const codeSending = ref(false);
+const countdown = ref(0);
+
+// 兼容性：保持原有的phoneNumber变量
+const phoneNumber = ref('');
+watch(username, (newVal) => {
+  phoneNumber.value = newVal;
+});
+
+// 邮箱格式验证
+const isValidEmail = (emailStr) => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(emailStr);
+};
+
+// 发送邮箱验证码
+const sendVerificationCode = async () => {
+  if (!email.value || !isValidEmail(email.value)) {
+    alert('请输入有效的邮箱地址');
+    return;
+  }
+
+  try {
+    codeSending.value = true;
+    
+    const response = await axios.post('http://127.0.0.1:8000/appp/send-verification-code/', {
+      email: email.value,
+      type: 'register'
+    });
+
+    if (response.data.success) {
+      alert('验证码发送成功，请查收邮件');
+      
+      // 开始倒计时
+      countdown.value = 60;
+      const timer = setInterval(() => {
+        countdown.value--;
+        if (countdown.value <= 0) {
+          clearInterval(timer);
+        }
+      }, 1000);
+      
+    } else {
+      alert('验证码发送失败：' + response.data.message);
+    }
+  } catch (error) {
+    console.error('发送验证码失败', error);
+    alert('发送验证码失败，请稍后重试');
+  } finally {
+    codeSending.value = false;
+  }
+};
+
+// 注册函数
 const register = async () => {
   if (password.value !== confirmPassword.value) {
     alert("密码不一致，请重新确认");
     return;
   }
 
+  // 密码强度检查
+  if (password.value.length < 6) {
+    alert("密码长度至少6位");
+    return;
+  }
+
   try {
-    const response = await axios.post('http://127.0.0.1:8000/appp/register/', {
-      phoneNumber: phoneNumber.value,
+    registering.value = true;
+    
+    // 准备注册数据
+    const registerData = {
+      username: username.value,
       password: password.value,
-    });    if (response.data.success) {
+    };
+
+    // 如果是邮箱注册模式，添加邮箱相关信息
+    if (registerMode.value === 'email') {
+      if (!email.value || !isValidEmail(email.value)) {
+        alert('请输入有效的邮箱地址');
+        return;
+      }
+      
+      if (!verificationCode.value || verificationCode.value.length !== 6) {
+        alert('请输入6位数字验证码');
+        return;
+      }
+      
+      registerData.email = email.value;
+      registerData.verification_code = verificationCode.value;
+      registerData.nickname = username.value;
+    } else {
+      // 兼容旧版本API
+      registerData.phoneNumber = username.value;
+    }
+
+    const response = await axios.post('http://127.0.0.1:8000/appp/register/', registerData);
+
+    if (response.data.success) {
       // 保存用户ID到localStorage
       if (response.data.user_id) {
         localStorage.setItem('virtual_partner_user_id', response.data.user_id);
       }
       
-      alert("注册成功！欢迎加入灵犀一言大家庭");
+      if (registerMode.value === 'email') {
+        alert("注册成功！您的邮箱已通过验证，欢迎加入灵犀一言大家庭");
+      } else {
+        alert("注册成功！欢迎加入灵犀一言大家庭");
+      }
+      
       router.push("/login");
     } else {
       alert("注册失败: " + response.data.message);
     }
   } catch (error) {
     console.error("注册请求失败", error);
-    alert("注册请求失败，请稍后重试");
+    if (error.response && error.response.data && error.response.data.message) {
+      alert("注册失败: " + error.response.data.message);
+    } else {
+      alert("注册请求失败，请稍后重试");
+    }
+  } finally {
+    registering.value = false;
   }
 };
 
@@ -514,5 +687,75 @@ const goToLogin = () => {
 .register-btn,
 .login-link {
   animation: slideIn 0.6s ease-out both;
+}
+
+/* 注册模式切换标签 */
+.register-mode-tabs {
+  display: flex;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 12px;
+  padding: 4px;
+  margin-bottom: 25px;
+  gap: 4px;
+}
+
+.mode-tab {
+  flex: 1;
+  padding: 12px 16px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: transparent;
+  color: #8b7d6f;
+}
+
+.mode-tab.active {
+  background: linear-gradient(135deg, #d4c5a9, #b8a082);
+  color: white;
+  box-shadow: 0 2px 8px rgba(212, 197, 169, 0.3);
+}
+
+.mode-tab:hover:not(.active) {
+  background: rgba(212, 197, 169, 0.2);
+}
+
+/* 验证码输入组 */
+.verification-group {
+  position: relative;
+}
+
+.verification-input {
+  padding-right: 140px !important;
+}
+
+.send-code-btn {
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.send-code-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #5a6fd8, #6a3093);
+  transform: translateY(-50%) scale(1.02);
+}
+
+.send-code-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  transform: translateY(-50%);
 }
 </style>
