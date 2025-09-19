@@ -147,19 +147,45 @@
               </button>
             </div>
           </div>
-          
-          <!-- 日记内容显示 -->
+            <!-- 日记内容显示 -->
           <div class="diary-display" v-if="diaryData.content">
             <div class="emotion-summary">
               <h4>今日情绪总结</h4>
               <div class="emotion-info">
+                <!-- 单独情绪强度显示 -->
+                <div class="individual-emotions" v-if="diaryData.emotions.length > 0">
+                  <h5>具体情绪分析</h5>
+                  <div class="emotion-bars">
+                    <div v-for="emotion in diaryData.emotions" :key="emotion.emotion || emotion" class="emotion-bar-item">
+                      <div class="emotion-label">
+                        <span class="emotion-name">{{ typeof emotion === 'string' ? emotion : emotion.emotion }}</span>
+                        <span class="emotion-intensity" v-if="typeof emotion === 'object'">
+                          {{ emotion.intensity || 50 }}%
+                        </span>
+                      </div>
+                      <div class="emotion-progress-bar">
+                        <div 
+                          class="emotion-progress-fill" 
+                          :style="{ 
+                            width: (typeof emotion === 'object' ? emotion.intensity : 50) + '%',
+                            backgroundColor: getEmotionColor(typeof emotion === 'string' ? emotion : emotion.emotion)
+                          }"
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- 情绪标签（保留原有显示） -->
                 <div class="emotion-tags">
                   <span v-for="emotion in diaryData.emotions" :key="emotion" class="emotion-tag">
                     {{ typeof emotion === 'string' ? emotion : emotion.emotion }}
                   </span>
                 </div>
+                
+                <!-- 总体情绪分值 -->
                 <div class="emotion-score">
-                  <span class="score-label">情绪指数</span>
+                  <span class="score-label">总体情绪指数</span>
                   <div class="score-display">
                     <div class="score-bar">
                       <div 
@@ -192,7 +218,66 @@
                 </div>
               </div>
             </div>
-              <!-- 重新生成按钮 -->
+              <!-- 情绪干预提醒 -->
+            <div v-if="interventionData && showIntervention" class="intervention-alert" :class="`intervention-${interventionData.level}`">
+              <div class="intervention-header">
+                <div class="intervention-icon">
+                  <span v-if="interventionData.level === 'critical'">🚨</span>
+                  <span v-else-if="interventionData.level === 'moderate'">⚠️</span>
+                  <span v-else>💝</span>
+                </div>
+                <div class="intervention-title">
+                  <h5>{{ interventionData.title }}</h5>
+                  <span class="urgency-badge" :class="`urgency-${interventionData.level}`">
+                    {{ interventionData.urgency }}级关注
+                  </span>
+                </div>
+                <button @click="dismissIntervention" class="intervention-close">&times;</button>
+              </div>
+              
+              <div class="intervention-content">
+                <p class="intervention-message">{{ interventionData.message }}</p>
+                
+                <div class="intervention-actions">
+                  <h6>建议行动:</h6>
+                  <div class="action-list">
+                    <div 
+                      v-for="(action, index) in interventionData.actions" 
+                      :key="index"
+                      class="action-item"
+                      :class="{ 'urgent-action': action.urgent }"
+                    >
+                      <div class="action-header">
+                        <span class="action-icon" v-if="action.urgent">🔴</span>
+                        <span class="action-icon" v-else>💡</span>
+                        <strong>{{ action.title }}</strong>
+                      </div>
+                      <p class="action-description">{{ action.description }}</p>
+                      <button 
+                        @click="executeAction(action)" 
+                        class="action-btn"
+                        :class="{ 'urgent-btn': action.urgent }"
+                      >
+                        {{ action.urgent ? '立即执行' : '开始尝试' }}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                
+                <div v-if="interventionData.resources && interventionData.resources.length > 0" class="emergency-resources">
+                  <h6>紧急联系方式:</h6>
+                  <div class="resource-list">
+                    <div v-for="(resource, index) in interventionData.resources" :key="index" class="resource-item">
+                      <span class="resource-name">{{ resource.name }}</span>
+                      <span class="resource-contact">{{ resource.contact }}</span>
+                      <button @click="copyContact(resource.contact)" class="copy-btn">复制</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- 重新生成按钮 -->
             <div class="diary-actions">
               <button @click="regenerateDiary" class="regenerate-btn" :disabled="isGeneratingDiary">
                 <!-- 重新生成进度条 -->
@@ -368,6 +453,10 @@ const diaryData = reactive({
 })
 const diaryDates = reactive(new Set())
 
+// 情绪干预数据
+const interventionData = ref(null)
+const showIntervention = ref(true)
+
 // 消息数据
 const messages = reactive([])
 const recentMessages = computed(() => {
@@ -445,6 +534,57 @@ const getScoreColor = (score) => {
   } else {
     return '#ff6b6b'  // 低情绪 - 红色
   }
+}
+
+// 不同情绪类型的颜色映射
+const getEmotionColor = (emotion) => {
+  const emotionColors = {
+    // 正面情绪 - 绿色系
+    '开心': '#2ed573',
+    '快乐': '#26de81', 
+    '兴奋': '#20bf6b',
+    '愉快': '#00d2d3',
+    '喜悦': '#54a0ff',
+    '满足': '#5f27cd',
+    
+    // 中性情绪 - 蓝色系
+    '平静': '#74b9ff',
+    '安静': '#a29bfe',
+    '轻松': '#6c5ce7',
+    '舒适': '#00b894',
+    '宁静': '#0984e3',
+    
+    // 负面情绪 - 红色/橙色系  
+    '焦虑': '#ff7675',
+    '紧张': '#e17055',
+    '担心': '#fd79a8',
+    '不安': '#fdcb6e',
+    '忧虑': '#e84393',
+    '压力': '#d63031',
+    
+    // 悲伤情绪 - 暗色系
+    '难过': '#636e72',
+    '伤心': '#2d3436', 
+    '悲伤': '#636e72',
+    '沮丧': '#74b9ff',
+    '失落': '#a29bfe',
+    '郁闷': '#6c5ce7',
+    
+    // 愤怒情绪 - 深红色系
+    '愤怒': '#e74c3c',
+    '生气': '#c0392b',
+    '烦躁': '#e55039',
+    '恼火': '#fa4d56',
+    '气愤': '#ff3742',
+    
+    // 疲惫情绪 - 灰色系
+    '疲惫': '#95a5a6',
+    '累': '#7f8c8d',
+    '疲劳': '#34495e',
+    '困': '#95a5a6',
+    '乏力': '#7f8c8d'
+  }
+    return emotionColors[emotion] || '#74b9ff' // 默认蓝色
 }
 
 // 显示情绪趋势图
@@ -1227,14 +1367,13 @@ const generateDiary = async () => {
       '正在使用AI分析您的聊天记录，生成情绪日记...'
     partnerStatus.value = loadingMessage
     diaryProgressMessage.value = '正在连接AI服务...'
-      
-    // 调用后端API生成日记
+        // 调用后端API生成日记
     const response = await axios.post('http://127.0.0.1:8000/generate-diary/', {
       user_id: currentUserId.value,      
       date: selectedDate.value,  // 格式: YYYY-MM-DD
       force_regenerate: forceRegenerate
     }, {
-      timeout: 210000  // 3.5分钟超时，给后端重试留出更多时间
+      timeout: 360000  // 6分钟超时，给后端足够时间处理（qwen3:4b关闭思考功能后）
     })
 
     // 清除进度条间隔
@@ -1244,17 +1383,26 @@ const generateDiary = async () => {
       // 完成进度
       diaryProgress.value = 100
       diaryProgressMessage.value = '生成完成！'
-      
-      const diary = response.data.diary
+        const diary = response.data.diary
+      const intervention = response.data.intervention  // 获取干预数据
         // 更新日记数据
       Object.assign(diaryData, {
         content: diary.content,
-        emotions: diary.emotions.map(e => typeof e === 'string' ? e : e.emotion), // 兼容不同格式
+        emotions: diary.emotions || [], // 保留原始情绪数据格式（包含强度信息）
         messageCount: diary.message_count,
         mainTopic: diary.main_topic,
         emotionScore: diary.emotion_score || 0.0,
         date: diary.date
       })
+      
+      // 处理干预数据
+      if (intervention) {
+        interventionData.value = intervention
+        showIntervention.value = true
+        console.log('触发情绪干预:', intervention.level, intervention.title)
+      } else {
+        interventionData.value = null
+      }
       
       // 保存到本地存储（可选）
       localStorage.setItem(`diary_${selectedDate.value}`, JSON.stringify(diaryData))
@@ -1323,13 +1471,12 @@ const regenerateDiary = async () => {
   try {
     // 显示加载状态
     partnerStatus.value = '正在重新生成情绪日记...'
-    isProcessing.value = true
-      // 调用后端API强制重新生成日记
+    isProcessing.value = true    // 调用后端API强制重新生成日记
     const response = await axios.post('http://127.0.0.1:8000/generate-diary/', {
       user_id: currentUserId.value,      date: selectedDate.value,
       force_regenerate: true
     }, {
-      timeout: 210000  // 3.5分钟超时，给后端重试留出更多时间
+      timeout: 360000  // 6分钟超时，给后端重试留出更多时间
     })
 
     if (response.data && response.data.success) {
@@ -1691,6 +1838,102 @@ const generateUUID = () => {
     const r = Math.random() * 16 | 0
     const v = c == 'x' ? r : (r & 0x3 | 0x8)
     return v.toString(16)
+  })
+}
+
+// 情绪干预相关方法
+const dismissIntervention = () => {
+  showIntervention.value = false
+  interventionData.value = null
+}
+
+const executeAction = async (action) => {
+  console.log('执行干预行动:', action.type, action.title)
+  
+  switch (action.type) {
+    case 'professional_help':
+      alert('这是一个重要的建议。如果您感到情绪困扰，请不要犹豫寻求专业心理健康服务。您的健康和安全是最重要的。')
+      break
+      
+    case 'emergency_contact':
+      alert('请立即联系您信任的朋友、家人或医生。如果感到危险，请拨打紧急电话。')
+      break
+      
+    case 'guided_relaxation':
+    case 'breathing_exercise':
+      startBreathingExercise()
+      break
+      
+    case 'cognitive_reframe':
+      startCognitiveExercise()
+      break
+      
+    case 'activity_suggestion':
+      showActivitySuggestions()
+      break
+      
+    case 'professional_consultation':
+      alert('考虑联系心理健康专家进行咨询。许多地区都有心理健康服务，包括在线咨询选项。')
+      break
+      
+    default:
+      alert(`正在为您准备 "${action.title}" 的相关指导...`)
+  }
+}
+
+const startBreathingExercise = () => {
+  // 简单的呼吸练习指导
+  alert('让我们一起做呼吸练习：\n\n1. 找一个舒适的姿势坐下\n2. 慢慢吸气4秒\n3. 屏住呼吸4秒\n4. 慢慢呼气6秒\n5. 重复5-10次\n\n现在开始...')
+  
+  // 可以进一步增强为语音引导
+  partnerStatus.value = '正在进行呼吸放松练习，请跟随节奏...'
+}
+
+const startCognitiveExercise = () => {
+  const questions = [
+    '当前让您困扰的主要想法是什么？',
+    '这个想法有多少是基于事实的？',
+    '是否有其他角度来看待这个情况？',
+    '最坏的情况真的会发生吗？',
+    '如果朋友遇到同样的情况，您会给他什么建议？'
+  ]
+  
+  let message = '让我们尝试重新审视当前的想法：\n\n'
+  questions.forEach((q, i) => {
+    message += `${i + 1}. ${q}\n`
+  })
+  message += '\n请花几分钟思考这些问题...'
+  
+  alert(message)
+  partnerStatus.value = '认知重构练习中，请思考积极的视角...'
+}
+
+const showActivitySuggestions = () => {
+  const activities = [
+    '散步或轻度运动',
+    '听舒缓的音乐',
+    '与朋友或家人聊天',
+    '做一些创意活动（画画、写作）',
+    '观看有趣的视频或电影',
+    '进行冥想或正念练习',
+    '整理房间或做家务',
+    '阅读喜欢的书籍'
+  ]
+  
+  let message = '以下活动可能有助于改善心情：\n\n'
+  activities.forEach((activity, i) => {
+    message += `${i + 1}. ${activity}\n`
+  })
+  message += '\n选择一个您感兴趣的活动尝试15-30分钟。'
+  
+  alert(message)
+}
+
+const copyContact = (contact) => {
+  navigator.clipboard.writeText(contact).then(() => {
+    alert(`联系方式已复制: ${contact}`)
+  }).catch(() => {
+    alert(`请手动复制: ${contact}`)
   })
 }
 
@@ -2618,6 +2861,7 @@ onUnmounted(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  margin-top: 15px;
 }
 
 .emotion-tag {
@@ -2627,6 +2871,68 @@ onUnmounted(() => {
   border-radius: 15px;
   font-size: 12px;
   font-weight: 500;
+}
+
+/* 新增：单独情绪分析样式 */
+.individual-emotions {
+  margin-bottom: 20px;
+  padding: 15px;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 12px;
+  border: 1px solid rgba(212, 197, 169, 0.3);
+}
+
+.individual-emotions h5 {
+  margin: 0 0 15px 0;
+  color: #8b7355;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.emotion-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.emotion-bar-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.emotion-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.emotion-name {
+  font-weight: 500;
+  color: #333;
+  font-size: 13px;
+}
+
+.emotion-intensity {
+  font-size: 12px;
+  color: #666;
+  font-weight: 600;
+}
+
+.emotion-progress-bar {
+  height: 8px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.emotion-progress-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease, background-color 0.3s ease;
+  background: linear-gradient(90deg, currentColor, currentColor);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .diary-text p {
@@ -3101,5 +3407,276 @@ onUnmounted(() => {
   font-size: 14px;
   color: #8b7355;
   text-align: center;
+}
+
+/* 情绪干预提醒样式 */
+.intervention-alert {
+  margin: 20px 0;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  animation: slideInDown 0.5s ease-out;
+}
+
+@keyframes slideInDown {
+  from {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.intervention-critical {
+  border-left: 5px solid #e74c3c;
+  background: linear-gradient(135deg, #fee, #fdd);
+}
+
+.intervention-moderate {
+  border-left: 5px solid #f39c12;
+  background: linear-gradient(135deg, #fff8e1, #ffe0b2);
+}
+
+.intervention-mild {
+  border-left: 5px solid #3498db;
+  background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+}
+
+.intervention-header {
+  display: flex;
+  align-items: center;
+  padding: 15px 20px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.intervention-icon {
+  font-size: 24px;
+  margin-right: 12px;
+}
+
+.intervention-title {
+  flex: 1;
+}
+
+.intervention-title h5 {
+  margin: 0 0 4px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.urgency-badge {
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.urgency-critical {
+  background: #e74c3c;
+  color: white;
+}
+
+.urgency-moderate {
+  background: #f39c12;
+  color: white;
+}
+
+.urgency-mild {
+  background: #3498db;
+  color: white;
+}
+
+.intervention-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: #7f8c8d;
+  cursor: pointer;
+  padding: 5px;
+  line-height: 1;
+  transition: color 0.2s ease;
+}
+
+.intervention-close:hover {
+  color: #2c3e50;
+}
+
+.intervention-content {
+  padding: 20px;
+}
+
+.intervention-message {
+  margin: 0 0 20px 0;
+  line-height: 1.6;
+  color: #2c3e50;
+  font-size: 14px;
+}
+
+.intervention-actions h6 {
+  margin: 0 0 15px 0;
+  color: #2c3e50;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.action-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.action-item {
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 8px;
+  padding: 15px;
+  transition: all 0.2s ease;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.action-item:hover {
+  background: rgba(255, 255, 255, 1);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.urgent-action {
+  border-left: 3px solid #e74c3c;
+  background: rgba(231, 76, 60, 0.05);
+}
+
+.action-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.action-icon {
+  margin-right: 8px;
+  font-size: 14px;
+}
+
+.action-header strong {
+  color: #2c3e50;
+  font-size: 14px;
+}
+
+.action-description {
+  margin: 0 0 12px 0;
+  color: #5d6d7e;
+  font-size: 13px;
+  line-height: 1.5;
+  margin-left: 22px;
+}
+
+.action-btn {
+  background: linear-gradient(135deg, #3498db, #2980b9);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-left: 22px;
+}
+
+.action-btn:hover {
+  background: linear-gradient(135deg, #2980b9, #21618c);
+  transform: translateY(-1px);
+}
+
+.urgent-btn {
+  background: linear-gradient(135deg, #e74c3c, #c0392b);
+}
+
+.urgent-btn:hover {
+  background: linear-gradient(135deg, #c0392b, #a93226);
+}
+
+.emergency-resources {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.emergency-resources h6 {
+  margin: 0 0 15px 0;
+  color: #2c3e50;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.resource-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.resource-item {
+  display: flex;
+  align-items: center;
+  background: rgba(52, 152, 219, 0.1);
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(52, 152, 219, 0.2);
+}
+
+.resource-name {
+  flex: 1;
+  font-weight: 500;
+  color: #2c3e50;
+  font-size: 13px;
+}
+
+.resource-contact {
+  color: #3498db;
+  font-family: monospace;
+  font-size: 13px;
+  margin-right: 10px;
+}
+
+.copy-btn {
+  background: #3498db;
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.copy-btn:hover {
+  background: #2980b9;
+}
+
+/* 响应式适配 */
+@media (max-width: 768px) {
+  .intervention-header {
+    padding: 12px 15px;
+  }
+  
+  .intervention-content {
+    padding: 15px;
+  }
+  
+  .action-item {
+    padding: 12px;
+  }
+  
+  .resource-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .resource-contact {
+    margin-right: 0;
+  }
 }
 </style>

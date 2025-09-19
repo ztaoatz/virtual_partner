@@ -48,16 +48,19 @@ def test_timezone_in_api():
             print(f"   ❌ 请求失败: {response.status_code}")
     except Exception as e:
         print(f"   ❌ 请求异常: {e}")
-    
-    # 2. 测试发送消息 (检查新消息的时间戳)
+      # 2. 测试发送消息 (检查新消息的时间戳)
     print(f"\n2. 测试发送消息...")
     try:
         test_message = f"时区测试消息 - {datetime.now().strftime('%H:%M:%S')}"
-        response = requests.post('http://127.0.0.1:8000/chat/', {
-            'user_id': user_id,
-            'message': test_message,
-            'session_id': None
-        }, timeout=30)
+        response = requests.post('http://127.0.0.1:8000/chat/', 
+            json={
+                'prompt': test_message,
+                'system': '你是一个友善的AI助手',
+                'user_id': user_id,
+                'session_id': None
+            }, 
+            headers={'Content-Type': 'application/json'},
+            timeout=30)
         
         if response.status_code == 200:
             data = response.json()

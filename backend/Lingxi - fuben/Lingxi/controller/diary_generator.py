@@ -80,6 +80,166 @@ def calculate_emotion_score(emotions_data):
     
     return 50.0  # 中性分值
 
+def check_emotional_crisis_intervention(user, recent_scores, current_score):
+    """
+    检查是否需要情绪危机干预
+    基于用户的情绪分值历史和当前状态判断
+    """
+    # 干预阈值配置
+    CRISIS_THRESHOLD = 35.0  # 危机阈值：分值低于35分
+    CONCERN_THRESHOLD = 45.0  # 关注阈值：分值低于45分
+    CONTINUOUS_DAYS = 3  # 连续天数阈值
+    
+    # 检查当前分值
+    if current_score >= CONCERN_THRESHOLD:
+        return None  # 情绪正常，无需干预
+    
+    # 分析连续低分天数
+    continuous_low_days = 0
+    crisis_level_days = 0
+    
+    # 计算连续低分天数（包括今天）
+    all_scores = recent_scores + [current_score]
+    for score in reversed(all_scores):
+        if score < CONCERN_THRESHOLD:
+            continuous_low_days += 1
+            if score < CRISIS_THRESHOLD:
+                crisis_level_days += 1
+        else:
+            break
+    
+    # 计算平均分值
+    avg_score = sum(all_scores[-7:]) / min(len(all_scores), 7) if all_scores else current_score
+    
+    # 判断干预级别
+    intervention_level = None
+    if crisis_level_days >= 2 or current_score < 25:
+        intervention_level = "critical"  # 紧急干预
+    elif continuous_low_days >= CONTINUOUS_DAYS or avg_score < CRISIS_THRESHOLD:
+        intervention_level = "moderate"  # 中度干预
+    elif continuous_low_days >= 2 or current_score < CONCERN_THRESHOLD:
+        intervention_level = "mild"  # 轻度干预
+    
+    if intervention_level:
+        return {
+            "level": intervention_level,
+            "current_score": current_score,
+            "avg_score": round(avg_score, 1),
+            "continuous_days": continuous_low_days,
+            "crisis_days": crisis_level_days,
+            "trigger_date": datetime.now().strftime('%Y-%m-%d')
+        }
+    
+    return None
+
+def generate_intervention_suggestions(intervention_data):
+    """
+    根据干预级别生成具体的干预建议
+    """
+    level = intervention_data["level"]
+    current_score = intervention_data["current_score"]
+    continuous_days = intervention_data["continuous_days"]
+    
+    suggestions = {
+        "level": level,
+        "urgency": "高" if level == "critical" else ("中" if level == "moderate" else "低"),
+        "title": "",
+        "message": "",
+        "actions": [],
+        "resources": []
+    }
+    
+    if level == "critical":
+        suggestions.update({
+            "title": "紧急情绪支持提醒",
+            "message": f"我注意到您最近{continuous_days}天的情绪分值持续较低（当前{current_score:.1f}分）。您的情绪状态让我很担心，建议您立即寻求专业帮助。",
+            "actions": [
+                {
+                    "type": "professional_help",
+                    "title": "寻求专业心理帮助",
+                    "description": "建议立即联系心理健康专家或拨打心理危机热线",
+                    "urgent": True
+                },
+                {
+                    "type": "emergency_contact",
+                    "title": "联系紧急联系人",
+                    "description": "与信任的朋友、家人或医生联系",
+                    "urgent": True
+                },
+                {
+                    "type": "immediate_coping",
+                    "title": "立即应对策略",
+                    "description": "进行深呼吸练习，尝试放松技巧，避免独处",
+                    "urgent": False
+                }
+            ],
+            "resources": [
+                {"name": "全国心理危机干预热线", "contact": "400-161-9995"},
+                {"name": "北京危机干预热线", "contact": "010-82951332"},
+                {"name": "上海心理援助热线", "contact": "021-64389888"}
+            ]
+        })
+    
+    elif level == "moderate":
+        suggestions.update({
+            "title": "情绪关怀提醒",
+            "message": f"您已经连续{continuous_days}天情绪分值较低，我很关心您的状态。让我们一起尝试一些放松和调节的方法。",
+            "actions": [
+                {
+                    "type": "guided_relaxation",
+                    "title": "引导式深呼吸练习",
+                    "description": "我可以陪您做一个5分钟的深呼吸放松练习",
+                    "urgent": False
+                },
+                {
+                    "type": "cognitive_reframe",
+                    "title": "认知重构练习",
+                    "description": "让我们一起分析当前的想法，寻找更积极的视角",
+                    "urgent": False
+                },
+                {
+                    "type": "activity_suggestion",
+                    "title": "积极活动建议",
+                    "description": "推荐一些有助于改善情绪的活动",
+                    "urgent": False
+                },
+                {
+                    "type": "professional_consultation",
+                    "title": "考虑专业咨询",
+                    "description": "如果情况持续，建议咨询心理健康专家",
+                    "urgent": False
+                }
+            ]
+        })
+    
+    else:  # mild
+        suggestions.update({
+            "title": "温馨情绪提醒",
+            "message": f"注意到您最近{continuous_days}天的情绪有些低落。让我们试试一些简单的方法来改善心情。",
+            "actions": [
+                {
+                    "type": "breathing_exercise",
+                    "title": "简单呼吸练习",
+                    "description": "一起做个简单的放松呼吸练习",
+                    "urgent": False
+                },
+                {
+                    "type": "positive_activities",
+                    "title": "积极活动推荐",
+                    "description": "推荐一些简单有效的心情改善活动",
+                    "urgent": False
+                },
+                {
+                    "type": "social_connection",
+                    "title": "社交连接建议",
+                    "description": "与朋友或家人聊天可能会有帮助",
+                    "urgent": False
+                }
+            ]
+        })
+    
+    return suggestions
+
 @csrf_exempt
 def generate_emotion_diary(request):
     """生成用户的情绪日记"""
@@ -160,12 +320,11 @@ def generate_emotion_diary(request):
             'date': target_date
         }
         print(f"调用Ollama生成日记，用户: {user.username}, 日期: {target_date}, 消息数: {len(chat_history)}")
-        
         try:
             ollama_response = requests.post(
                 'http://localhost:25674/generate-diary/',
                 json=ollama_data,
-                timeout=180  # 3分钟超时，与前端保持一致
+                timeout=320  # 延长到5分20秒超时，给Ollama代理足够时间
             )
             
             if ollama_response.status_code != 200:
@@ -189,7 +348,6 @@ def generate_emotion_diary(request):
                 'error': 'AI模型服务连接失败',
                 'details': '请确认Ollama代理服务正在运行'
             }, status=500)
-        
         # 计算情绪分值
         emotions_data = diary_result.get('emotions', [])
         emotion_score = calculate_emotion_score(emotions_data)
@@ -218,6 +376,25 @@ def generate_emotion_diary(request):
                 **diary_data
             )
         
+        # 检查是否需要情绪干预
+        intervention_data = None
+        try:
+            # 获取用户最近7天的情绪分值
+            recent_diaries = EmotionDiary.objects.filter(
+                user=user,
+                date__lt=target_datetime
+            ).order_by('-date')[:7]
+            
+            recent_scores = [diary.emotion_score for diary in recent_diaries]
+            
+            # 检查是否需要干预
+            intervention_check = check_emotional_crisis_intervention(user, recent_scores, emotion_score)
+            if intervention_check:
+                intervention_data = generate_intervention_suggestions(intervention_check)
+                print(f"用户 {user.username} 触发情绪干预: {intervention_data['level']}")
+        except Exception as e:
+            print(f"情绪干预检查失败: {e}")
+        
         return JsonResponse({
             'success': True,
             'diary': {
@@ -230,7 +407,8 @@ def generate_emotion_diary(request):
                 'date': diary_obj.date.strftime('%Y-%m-%d'),
                 'created_at': diary_obj.created_at.isoformat(),
                 'is_regenerated': force_regenerate and existing_diary is not None
-            }
+            },
+            'intervention': intervention_data  # 添加干预建议
         })
         
     except json.JSONDecodeError:
@@ -449,12 +627,11 @@ def delete_emotion_diary(request):
         }
         
         print(f"发送日记生成请求: 用户={profile.nickname}, 消息数={len(chat_history)}")
-        
-        # 调用Ollama代理生成日记
+          # 调用Ollama代理生成日记
         response = requests.post(
             'http://localhost:25674/generate-diary/',
             json=diary_request,
-            timeout=120
+            timeout=320  # 延长到5分20秒超时，给Ollama代理足够时间
         )
         
         if response.status_code == 200:
@@ -535,3 +712,76 @@ def get_diary_history(request):
     except Exception as e:
         print(f"获取日记历史错误: {e}")
         return JsonResponse({'error': '服务器内部错误'}, status=500)
+
+@csrf_exempt
+def check_emotion_intervention(request):
+    """检查用户是否需要情绪干预"""
+    if request.method != 'GET':
+        return JsonResponse({'error': '只支持GET请求'}, status=405)
+    
+    try:
+        user_id = request.GET.get('user_id')
+        days = int(request.GET.get('days', 7))  # 默认检查最近7天
+        
+        if not user_id:
+            return JsonResponse({'error': '缺少用户ID'}, status=400)
+        
+        # 获取用户信息
+        try:
+            profile = UserProfile.objects.get(external_user_id=user_id)
+            user = profile.user
+        except UserProfile.DoesNotExist:
+            return JsonResponse({'error': '用户不存在'}, status=404)
+        
+        # 获取用户最近的情绪日记（按日期正序）
+        all_diaries = EmotionDiary.objects.filter(user=user).order_by('date')
+        recent_diaries = list(all_diaries)[-days:] if len(all_diaries) > days else list(all_diaries)
+        
+        if not recent_diaries:
+            return JsonResponse({
+                'success': True,
+                'intervention_needed': False,
+                'message': '用户暂无情绪日记数据'
+            })
+        
+        # 获取历史分值和当前分值
+        all_scores = [diary.emotion_score for diary in recent_diaries]
+        current_score = all_scores[-1]  # 最新分值
+        recent_scores = all_scores[:-1] if len(all_scores) > 1 else []  # 历史分值
+        
+        print(f"调试信息 - 用户{user.username}:")
+        print(f"  所有分值: {all_scores}")
+        print(f"  当前分值: {current_score}")
+        print(f"  历史分值: {recent_scores}")
+        
+        # 检查是否需要干预
+        intervention_check = check_emotional_crisis_intervention(user, recent_scores, current_score)
+        
+        if intervention_check:
+            intervention_data = generate_intervention_suggestions(intervention_check)
+            return JsonResponse({
+                'success': True,
+                'intervention_needed': True,
+                'intervention': intervention_data,
+                'user_stats': {
+                    'current_score': current_score,
+                    'avg_score': intervention_check['avg_score'],
+                    'continuous_days': intervention_check['continuous_days'],
+                    'crisis_days': intervention_check['crisis_days']
+                }
+            })
+        else:
+            return JsonResponse({
+                'success': True,
+                'intervention_needed': False,
+                'user_stats': {
+                    'current_score': current_score,
+                    'avg_score': sum(all_scores) / len(all_scores),
+                    'total_days': len(recent_diaries)
+                },
+                'message': '用户情绪状态正常'
+            })
+    
+    except Exception as e:
+        print(f"检查情绪干预错误: {e}")
+        return JsonResponse({'error': f'检查失败: {str(e)}'}, status=500)

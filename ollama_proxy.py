@@ -107,8 +107,7 @@ def generate_diary():
 - 内容积极正面
 
 情绪日记:"""
-        
-        # 发送请求给Ollama - 优化版本
+          # 发送请求给Ollama - 优化版本，关闭思考功能
         ollama_request = {
             "model": "qwen3:4b",
             "prompt": diary_prompt,
@@ -117,7 +116,8 @@ def generate_diary():
                 "temperature": 0.7,  # 降低温度提高稳定性
                 "top_p": 0.8,        # 减少随机性
                 "max_tokens": 600,   # 增加最大token数
-                "repeat_penalty": 1.1  # 避免重复内容
+                "repeat_penalty": 1.1,  # 避免重复内容
+                "thinking": False    # 关闭思考功能，避免生成<think>标签
             }
         }
         print(f"发送给Ollama生成日记: {ollama_request}")
@@ -129,12 +129,11 @@ def generate_diary():
         while retry_count <= max_retries:
             try:
                 print(f"尝试生成日记 (第 {retry_count + 1} 次)")
-                
-                # 调用Ollama API
+                  # 调用Ollama API，延长超时时间
                 response = requests.post(
                     OLLAMA_URL, 
                     json=ollama_request,
-                    timeout=120  # 2分钟超时
+                    timeout=300  # 延长到5分钟超时，避免因思考时间长导致超时
                 )
                 
                 if response.status_code == 200:
