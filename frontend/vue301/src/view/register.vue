@@ -9,91 +9,56 @@
       <div class="cloud cloud5">☁</div>
     </div>
     
-    <div class="register-card">
-      <div class="welcome-section">
+    <div class="register-card">      <div class="welcome-section">
         <img src="@/assets/linxi.png" class="logo" alt="灵犀一言" />
         <h2 class="welcome-title">加入我们</h2>
-        <p class="welcome-subtitle">开始您的AI陪伴之旅</p>
-      </div>
-
-      <!-- 注册模式选择 -->
-      <div class="register-mode-tabs">
-        <button 
-          type="button" 
-          :class="['mode-tab', { active: registerMode === 'username' }]"
-          @click="registerMode = 'username'"
-        >
-          用户名注册
-        </button>
-        <button 
-          type="button" 
-          :class="['mode-tab', { active: registerMode === 'email' }]"
-          @click="registerMode = 'email'"
-        >
-          邮箱注册
-        </button>
+        <p class="welcome-subtitle">开始您的AI陪伴之旅 · 邮箱注册</p>
       </div>
 
       <form @submit.prevent="register" class="register-form">
-        <!-- 用户名注册模式 -->
-        <div v-if="registerMode === 'username'">
-          <div class="input-group">
-            <div class="input-icon">👤</div>
-            <input 
-              v-model="username" 
-              type="text" 
-              placeholder="请输入用户名"
-              class="warm-input"
-              required
-            />
-          </div>
+        <!-- 邮箱注册表单 -->
+        <div class="input-group">
+          <div class="input-icon">👤</div>
+          <input 
+            v-model="username" 
+            type="text" 
+            placeholder="请输入用户名"
+            class="warm-input"
+            required
+          />
         </div>
 
-        <!-- 邮箱注册模式 -->
-        <div v-if="registerMode === 'email'">
-          <div class="input-group">
-            <div class="input-icon">👤</div>
-            <input 
-              v-model="username" 
-              type="text" 
-              placeholder="请输入用户名"
-              class="warm-input"
-              required
-            />
-          </div>
+        <div class="input-group">
+          <div class="input-icon">📧</div>
+          <input 
+            v-model="email" 
+            type="email" 
+            placeholder="请输入邮箱地址"
+            class="warm-input"
+            required
+          />
+        </div>
 
-          <div class="input-group">
-            <div class="input-icon">📧</div>
-            <input 
-              v-model="email" 
-              type="email" 
-              placeholder="请输入邮箱地址"
-              class="warm-input"
-              required
-            />
-          </div>
-
-          <div class="input-group verification-group">
-            <div class="input-icon">🔢</div>
-            <input 
-              v-model="verificationCode" 
-              type="text" 
-              placeholder="请输入邮箱验证码"
-              class="warm-input verification-input"
-              maxlength="6"
-              :required="registerMode === 'email'"
-            />
-            <button 
-              type="button" 
-              class="send-code-btn"
-              @click="sendVerificationCode"
-              :disabled="!email || !isValidEmail(email) || codeSending || countdown > 0"
-            >
-              <span v-if="codeSending">发送中...</span>
-              <span v-else-if="countdown > 0">{{ countdown }}s</span>
-              <span v-else>发送验证码</span>
-            </button>
-          </div>
+        <div class="input-group verification-group">
+          <div class="input-icon">🔢</div>
+          <input 
+            v-model="verificationCode" 
+            type="text" 
+            placeholder="请输入邮箱验证码"
+            class="warm-input verification-input"
+            maxlength="6"
+            required
+          />
+          <button 
+            type="button" 
+            class="send-code-btn"
+            @click="sendVerificationCode"
+            :disabled="!email || !isValidEmail(email) || codeSending || countdown > 0"
+          >
+            <span v-if="codeSending">发送中...</span>
+            <span v-else-if="countdown > 0">{{ countdown }}s</span>
+            <span v-else>发送验证码</span>
+          </button>
         </div>
         
         <div class="input-group">
@@ -150,8 +115,8 @@ import { ref, watch } from 'vue';
 import axios from 'axios';
 import router from "../router/index";
 
-// 注册模式：username（用户名注册）或 email（邮箱注册）
-const registerMode = ref('username');
+// 注册模式固定为邮箱注册
+const registerMode = ref('email');
 const username = ref('');
 const email = ref('');
 const password = ref('');
@@ -214,7 +179,7 @@ const sendVerificationCode = async () => {
   }
 };
 
-// 注册函数
+// 注册函数 - 只支持邮箱注册
 const register = async () => {
   if (password.value !== confirmPassword.value) {
     alert("密码不一致，请重新确认");
@@ -227,34 +192,28 @@ const register = async () => {
     return;
   }
 
+  // 邮箱验证
+  if (!email.value || !isValidEmail(email.value)) {
+    alert('请输入有效的邮箱地址');
+    return;
+  }
+  
+  if (!verificationCode.value || verificationCode.value.length !== 6) {
+    alert('请输入6位数字验证码');
+    return;
+  }
+
   try {
     registering.value = true;
     
-    // 准备注册数据
+    // 邮箱注册数据
     const registerData = {
       username: username.value,
       password: password.value,
+      email: email.value,
+      verification_code: verificationCode.value,
+      nickname: username.value
     };
-
-    // 如果是邮箱注册模式，添加邮箱相关信息
-    if (registerMode.value === 'email') {
-      if (!email.value || !isValidEmail(email.value)) {
-        alert('请输入有效的邮箱地址');
-        return;
-      }
-      
-      if (!verificationCode.value || verificationCode.value.length !== 6) {
-        alert('请输入6位数字验证码');
-        return;
-      }
-      
-      registerData.email = email.value;
-      registerData.verification_code = verificationCode.value;
-      registerData.nickname = username.value;
-    } else {
-      // 兼容旧版本API
-      registerData.phoneNumber = username.value;
-    }
 
     const response = await axios.post('http://127.0.0.1:8000/appp/register/', registerData);
 
@@ -264,12 +223,7 @@ const register = async () => {
         localStorage.setItem('virtual_partner_user_id', response.data.user_id);
       }
       
-      if (registerMode.value === 'email') {
-        alert("注册成功！您的邮箱已通过验证，欢迎加入灵犀一言大家庭");
-      } else {
-        alert("注册成功！欢迎加入灵犀一言大家庭");
-      }
-      
+      alert("注册成功！您的邮箱已通过验证，欢迎加入灵犀一言大家庭");
       router.push("/login");
     } else {
       alert("注册失败: " + response.data.message);
@@ -687,39 +641,6 @@ const goToLogin = () => {
 .register-btn,
 .login-link {
   animation: slideIn 0.6s ease-out both;
-}
-
-/* 注册模式切换标签 */
-.register-mode-tabs {
-  display: flex;
-  background: rgba(255, 255, 255, 0.6);
-  border-radius: 12px;
-  padding: 4px;
-  margin-bottom: 25px;
-  gap: 4px;
-}
-
-.mode-tab {
-  flex: 1;
-  padding: 12px 16px;
-  border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  background: transparent;
-  color: #8b7d6f;
-}
-
-.mode-tab.active {
-  background: linear-gradient(135deg, #d4c5a9, #b8a082);
-  color: white;
-  box-shadow: 0 2px 8px rgba(212, 197, 169, 0.3);
-}
-
-.mode-tab:hover:not(.active) {
-  background: rgba(212, 197, 169, 0.2);
 }
 
 /* 验证码输入组 */
